@@ -9,10 +9,12 @@ declare(strict_types=1);
  *     Pago anticipado (pia): se envía solo cuando la pasarela confirma el pago (markPaidAndPush).
  *  3. pushToMastershop(): arma el payload, valida las 3 reglas que el esquema no expresa y crea el pedido.
  *     Si falla queda en 'error' y cli/retry_orders.php lo reintenta sin duplicar.
+ *  Sin Mastershop (FULFILLMENT=dropi|manual): el pedido queda en 'pendiente_envio' (cola de despacho).
+ *     Claude lo lee por /api/pedidos, lo crea en Dropi y lo marca con markDispatched().
  */
 final class OrderService
 {
-    public function __construct(private PDO $db, private MastershopClient $ms) {}
+    public function __construct(private PDO $db, private ?MastershopClient $ms = null) {}
 
     /**
      * @param array $cart     [['variant_id' => int (id local de product_variants), 'qty' => int], ...]
@@ -88,7 +90,7 @@ final class OrderService
             )->execute([
                 $paymentMethod,
                 $paymentMethod === 'cod' ? 'contraentrega' : 'pendiente',
-                $subtotal, $shippingCharge, $total, env('CURRENCY', 'COP'),
+                $subtotal, $shippingCharge, $total, Country::currency(),
                 json_encode($customer, JSON_UNESCAPED_UNICODE),
                 json_encode($address, JSON_UNESCAPED_UNICODE),
                 $notes,
@@ -117,8 +119,17 @@ final class OrderService
             throw $e;
         }
 
-        if ($paymentMethod === 'cod') {
+        if ($paymentMethod === 'cod' && $this->ms) {
             $this->pushToMastershop($orderId); // si falla queda en 'error' para reintento
+        }
+        if (!$this->ms) {
+            // Productos de prueba: el pedido se guarda pero nunca entra a la cola de Dropi
+            $demo = (int) $this->db->query('SELECT COUNT(*) FROM order_items WHERE order_id = ' . (int) $orderId
+                . ' AND ms_product_id > ' . DemoSeeder::ID_FROM)->fetchColumn();
+            if ($demo) {
+                $this->db->prepare("UPDATE orders SET sync_status = 'error', sync_error = ? WHERE id = ?")
+                    ->execute(['Pedido de prueba: tiene productos de demostración y no se despacha.', $orderId]);
+            }
         }
         return $orderId;
     }
@@ -130,12 +141,63 @@ final class OrderService
             "UPDATE orders SET payment_status = 'pagado', payment_gateway = ?, payment_reference = ?
              WHERE id = ? AND payment_method = 'pia'"
         )->execute([$gateway, $reference, $orderId]);
+        if (!$this->ms) {
+            return true; // queda en la cola de despacho (Dropi / manual)
+        }
         return $this->pushToMastershop($orderId);
+    }
+
+    /**
+     * Pedidos listos para despachar fuera de Mastershop: contraentrega, o anticipado ya pagado,
+     * que todavía no se han creado en el proveedor (Dropi).
+     */
+    public function dispatchQueue(int $limit = 50): array
+    {
+        $st = $this->db->prepare(
+            "SELECT * FROM orders
+             WHERE sync_status = 'pendiente_envio'
+               AND (payment_method = 'cod' OR payment_status = 'pagado')
+             ORDER BY id LIMIT " . max(1, min(200, $limit))
+        );
+        $st->execute();
+        return $st->fetchAll();
+    }
+
+    /** Marca un pedido como creado en el proveedor (Dropi) con su número allá. */
+    public function markDispatched(int $orderId, string $providerRef, ?string $carrier = null, ?string $tracking = null): bool
+    {
+        $st = $this->db->prepare(
+            "UPDATE orders SET sync_status = 'enviado', sync_error = NULL, fulfillment_ref = ?,
+                    carrier_name = COALESCE(?, carrier_name), tracking_code = COALESCE(?, tracking_code)
+             WHERE id = ? AND sync_status <> 'enviado'"
+        );
+        $st->execute([mb_substr($providerRef, 0, 60), $carrier, $tracking, $orderId]);
+        return $st->rowCount() > 0;
+    }
+
+    /** Actualiza el estado de transporte que reporta el proveedor (Dropi). */
+    public function updateShipment(int $orderId, ?string $carrierStatus, ?string $carrier = null, ?string $tracking = null, ?string $trackingUrl = null): void
+    {
+        $this->db->prepare(
+            'UPDATE orders SET carrier_status = COALESCE(?, carrier_status), carrier_name = COALESCE(?, carrier_name),
+                    tracking_code = COALESCE(?, tracking_code), tracking_url = COALESCE(?, tracking_url)
+             WHERE id = ?'
+        )->execute([$carrierStatus ? mb_substr($carrierStatus, 0, 120) : null, $carrier, $tracking, $trackingUrl, $orderId]);
+    }
+
+    /** Deja el pedido con un error visible en el panel (p. ej. Dropi no tiene cobertura). */
+    public function markDispatchError(int $orderId, string $error): void
+    {
+        $this->db->prepare("UPDATE orders SET sync_status = 'error', sync_error = ?, sync_attempts = sync_attempts + 1 WHERE id = ?")
+            ->execute([mb_substr($error, 0, 2000), $orderId]);
     }
 
     /** Crea el pedido en Mastershop. Idempotente: si ya existe allá, solo lo enlaza. */
     public function pushToMastershop(int $orderId): bool
     {
+        if (!$this->ms) {
+            return false; // esta tienda no despacha con Mastershop
+        }
         $order = $this->db->query('SELECT * FROM orders WHERE id = ' . (int) $orderId)->fetch();
         if (!$order || $order['sync_status'] === 'enviado') {
             return (bool) $order;
@@ -294,8 +356,11 @@ final class OrderService
         if ($first === '' || $last === '') {
             throw new InvalidArgumentException('Nombre y apellido son obligatorios (solo letras)');
         }
-        if (strlen($phone) < 10) {
-            throw new InvalidArgumentException('Escribe un celular de 10 dígitos');
+        if (strlen($phone) > Country::get('phone_digits') && str_starts_with($phone, Country::get('phone_code'))) {
+            $phone = substr($phone, strlen(Country::get('phone_code'))); // quitaron o pusieron el indicativo
+        }
+        if (!Country::validPhone($phone)) {
+            throw new InvalidArgumentException('Escribe un celular de ' . Country::get('phone_digits') . ' dígitos');
         }
         if (!$email) {
             if (trim((string) ($c['email'] ?? '')) !== '') {
@@ -333,7 +398,7 @@ final class OrderService
             'city'       => $city,
             'state'      => $state,
             'district'   => trim((string) ($a['district'] ?? '')) ?: null,
-            'country'    => strtoupper(env('COUNTRY', 'CO')),
+            'country'    => Country::code(),
             'zip'        => trim((string) ($a['zip'] ?? '')) ?: null,
             'first_name' => $customer['first_name'],
             'last_name'  => $customer['last_name'],

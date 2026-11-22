@@ -22,7 +22,21 @@ function asset(string $path): string
 
 function money(int|string|null $v): string
 {
-    return '$' . number_format((int) $v, 0, ',', '.');
+    $th = Country::get('thousands');
+    return Country::get('symbol') . number_format((int) $v, 0, $th === '.' ? ',' : '.', $th);
+}
+
+/** Datos del país para app.js (moneda, símbolo, redondeo de descuentos, texto del envío). */
+function country_js(): string
+{
+    $cfg = [
+        'cur'  => Country::currency(),
+        'sym'  => Country::get('symbol'),
+        'loc'  => Country::get('locale'),
+        'step' => (int) Country::get('round_step'),
+        'ship' => 'Incluido ' . Country::toAll(),
+    ];
+    return '<script>window.TC=' . json_encode($cfg, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) . ';</script>';
 }
 
 function setting(string $key, ?string $default = null): ?string
@@ -164,10 +178,17 @@ function shipping_included(): bool
     return (int) setting('shipping_flat', '0') === 0;
 }
 
-/** WhatsApp de soporte formateado: +57 318 216 5374 */
+/** WhatsApp de soporte formateado: +57 318 216 5374 / +502 5555 1234 */
 function wa_display(): string
 {
-    return preg_replace('/^57(\d{3})(\d{3})(\d{4})$/', '+57 $1 $2 $3', preg_replace('/\D/', '', (string) setting('whatsapp', '')));
+    $n = preg_replace('/\D/', '', (string) setting('whatsapp', ''));
+    return preg_replace(['/^57(\d{3})(\d{3})(\d{4})$/', '/^502(\d{4})(\d{4})$/'], ['+57 $1 $2 $3', '+502 $1 $2'], $n);
+}
+
+/** Enlace de WhatsApp a un cliente a partir de su celular nacional. */
+function wa_customer(string $phone): string
+{
+    return 'https://wa.me/' . Country::intlPhone($phone);
 }
 
 function wa_link(string $text = ''): string

@@ -1,4 +1,55 @@
-# Tendencity — tienda conectada a Mastershop
+# Tendencity — tienda conectada a Mastershop (Colombia) y Dropi (Guatemala)
+
+## Un código, varios países
+
+Cada país es una **instalación separada** del mismo código, con su propio `.env`, base de datos, panel y catálogo:
+
+| | Colombia | Guatemala |
+|---|---|---|
+| `.env` | `COUNTRY=CO` | `COUNTRY=GT` |
+| Moneda | COP (`$89.900`) | GTQ (`Q199`) |
+| Celular | 10 dígitos (3…) | 8 dígitos |
+| Departamentos y festivos | Colombia (Ley Emiliani) | Guatemala (Código de Trabajo art. 127) |
+| Despacho | `FULFILLMENT=mastershop` | `FULFILLMENT=dropi` (Claude crea los pedidos en Dropi) |
+
+El perfil de cada país está en `src/Country.php`. Las páginas legales de Guatemala están en `templates/pages/gt/`.
+Al instalar con `COUNTRY=GT`, los textos de ejemplo («a toda Colombia», Nequi…) se adaptan solos una vez.
+
+## Pago anticipado con descuento
+
+Panel → Configuración → General: **«Pago anticipado en TODOS los productos»** (`1`) y **«% de descuento»** (`5` por defecto).
+Un producto con su propio % lo conserva. El pedido anticipado queda retenido hasta que lo marques como pagado
+(Pedidos → «Pago anticipado pendiente» → Marcar pagado).
+
+## Despacho con Dropi a través de Claude (Guatemala)
+
+Dropi no tiene API pública, así que una **tarea programada de Claude** hace de puente:
+
+1. Lee los pedidos listos con `GET /api/pedidos` (contra entrega, o anticipado ya pagado).
+2. Los crea en Dropi con el conector de Dropi (`CON RECAUDO` si es contra entrega).
+3. Los marca en la tienda con `POST /api/pedidos/{ref}/despachado` y el número de Dropi.
+4. Actualiza el estado del envío con `POST /api/pedidos/{ref}/envio`.
+
+Autenticación: header `X-Api-Key: <API_TOKEN>` (`API_TOKEN` del `.env`, mínimo 32 caracteres).
+**Convención de productos:** el SKU del producto en el panel es el **ID del producto en Dropi**.
+Con variantes, el SKU de cada variante es `IDPRODUCTO-IDVARIACION`.
+También puedes marcar a mano: Pedidos → «Por despachar (Dropi)» → «Ya está en Dropi».
+
+Detalle de la API en `src/api_endpoint.php`.
+
+## Despliegue automático (GitHub Actions → cPanel)
+
+`.github/workflows/deploy-gt.yml` sube la tienda de Guatemala por FTP cada vez que se actualiza `main`
+(o a mano: pestaña Actions → «Desplegar tienda Guatemala» → Run workflow).
+
+1. En cPanel crea la base de datos, el subdominio y una cuenta FTP (ver abajo).
+2. En GitHub → Settings → Secrets and variables → Actions, crea los secretos
+   `FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD`, y opcionalmente la variable `SERVER_DIR` (por defecto `tendencity-gt/`).
+3. El subdominio debe apuntar a `tendencity-gt/public`.
+4. El `.env` se crea **a mano en el servidor** (Administrador de archivos) dentro de `tendencity-gt/`. El despliegue nunca lo toca,
+   ni toca `public/uploads/`.
+
+---
 
 PHP 8.1+ (extensiones curl, pdo_mysql, mbstring, zip, xml) y MySQL 8 / MariaDB 10.5+.
 Sin frameworks ni Composer: se sube por FTP o Git a cualquier hosting con cPanel.

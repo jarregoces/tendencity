@@ -13,7 +13,7 @@ if ($order) {
     $items = db()->query('SELECT COALESCE(p.sku, i.ms_product_id, i.product_id) AS ms_product_id, i.name, i.quantity, i.unit_price
                           FROM order_items i LEFT JOIN products p ON p.id = i.product_id WHERE i.order_id = ' . (int) $order['id'])->fetchAll();
     $meta['events'] = [['Purchase', [
-        'value' => (int) $order['total'], 'currency' => 'COP', 'content_type' => 'product',
+        'value' => (int) $order['total'], 'currency' => Country::currency(), 'content_type' => 'product',
         'content_ids' => array_map(fn($i) => (string) $i['ms_product_id'], $items),
         'num_items' => array_sum(array_column($items, 'quantity')),
         'items' => array_map(fn($i) => ['item_id' => (string) $i['ms_product_id'], 'item_name' => $i['name'], 'quantity' => (int) $i['quantity'], 'price' => (int) $i['unit_price']], $items),
@@ -82,7 +82,7 @@ $ico = fn($d) => '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="t
       </ul>
       <dl class="sum-tot">
         <div><dt>Productos</dt><dd><?= money($order['subtotal']) ?></dd></div>
-        <div><dt>Envío</dt><dd class="ok"><?= (int) $order['shipping_charge'] ? money($order['shipping_charge']) : 'Incluido a toda Colombia' ?></dd></div>
+        <div><dt>Envío</dt><dd class="ok"><?= (int) $order['shipping_charge'] ? money($order['shipping_charge']) : 'Incluido ' . e(Country::toAll()) ?></dd></div>
         <div class="sum-total"><dt>Total</dt><dd><?= money($order['total']) ?></dd></div>
       </dl>
       <div class="sum-meta">

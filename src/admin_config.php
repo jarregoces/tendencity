@@ -65,7 +65,7 @@ function page_pixeles(): void
         <tr><td>Abre el formulario de pedido</td><td>InitiateCheckout</td><td>begin_checkout</td></tr>
         <tr><td>Pedido confirmado</td><td>Purchase desde el navegador <?= MetaCapi::ready() ? '<strong>y desde el servidor (API de Conversiones)</strong>' : '' ?>, con el número de pedido para no contar doble</td><td>purchase</td></tr>
       </tbody></table>
-      <p class="muted">Purchase se envía en la página de confirmación, con el valor y la moneda (COP). Es el evento que debes optimizar en tus campañas de Meta.</p>
+      <p class="muted">Purchase se envía en la página de confirmación, con el valor y la moneda (<?= e(Country::currency()) ?>). Es el evento que debes optimizar en tus campañas de Meta.</p>
     </section>
 <?php }
 

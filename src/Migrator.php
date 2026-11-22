@@ -11,7 +11,7 @@ declare(strict_types=1);
  */
 final class Migrator
 {
-    public const VERSION = 18;
+    public const VERSION = 19;
 
     public function __construct(private PDO $db) {}
 
@@ -176,11 +176,46 @@ final class Migrator
         // v17: frases de la marquesina (solo si seguía el texto anterior)
         $this->db->exec("UPDATE settings SET v = 'Pago en casa · Envío gratis a toda Colombia' WHERE k = 'announcement' AND v LIKE '%a toda Colombia%Pagas al recibir%'");
 
+        // v19: despacho fuera de Mastershop (Dropi vía Claude) y pago anticipado general
+        if (!$this->hasColumn('orders', 'fulfillment_ref')) {
+            $this->db->exec('ALTER TABLE orders ADD COLUMN fulfillment_ref VARCHAR(60) NULL AFTER ms_order_id, ADD INDEX (fulfillment_ref)');
+            $done[] = 'orders.fulfillment_ref';
+        }
+        $this->db->exec("INSERT IGNORE INTO settings (k, v) VALUES ('pia_global', '1'), ('pia_global_discount', '5')");
+        $this->localizeTexts();
+
         $this->db->prepare("REPLACE INTO settings (k, v) VALUES ('schema_version', ?)")->execute([(string) self::VERSION]);
         if ($done) {
             error_log('[migrator] aplicado: ' . implode(', ', $done));
         }
         return $done;
+    }
+
+    /**
+     * Los textos de ejemplo que traen los .sql están escritos para Colombia.
+     * En una instalación de otro país se adaptan una sola vez (luego los editas en el panel).
+     */
+    private function localizeTexts(): void
+    {
+        $code = Country::code();
+        $done = (string) $this->db->query("SELECT v FROM settings WHERE k = 'texts_country'")->fetchColumn();
+        if ($code === 'CO' || $done === $code) {
+            if ($done === '') {
+                $this->db->prepare("REPLACE INTO settings (k, v) VALUES ('texts_country', ?)")->execute([$code]);
+            }
+            return;
+        }
+        $name = Country::name();
+        $pia = Country::get('pia_methods');
+        $sql = "REPLACE(REPLACE(REPLACE(%s, 'Nequi, Daviplata o transferencia', ?), 'toda Colombia', ?), 'de Colombia', ?)";
+        $args = [$pia, "toda {$name}", "de {$name}"];
+        $this->db->prepare('UPDATE settings SET v = ' . sprintf($sql, 'v') . " WHERE v LIKE '%Colombia%' OR v LIKE '%Nequi%'")->execute($args);
+        if ($this->hasTable('banners')) {
+            $this->db->prepare('UPDATE banners SET text = ' . sprintf($sql, 'text') . " WHERE text LIKE '%Colombia%'")->execute($args);
+        }
+        // El WhatsApp de ejemplo es colombiano: en otro país se deja vacío para poner el propio
+        $this->db->prepare("UPDATE settings SET v = '' WHERE k = 'whatsapp' AND v LIKE '57%' AND ? <> '57'")->execute([Country::get('phone_code')]);
+        $this->db->prepare("REPLACE INTO settings (k, v) VALUES ('texts_country', ?)")->execute([$code]);
     }
 
     private function ensureCategory(?string $parentSlug, string $slug, string $name, string $h1, int $sort): void

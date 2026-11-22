@@ -21,9 +21,6 @@ if (is_file($envFile)) {
     }
 }
 
-// Hora de Colombia para todo: fechas de PHP y de MySQL deben coincidir
-date_default_timezone_set(getenv('APP_TIMEZONE') ?: ($_ENV['APP_TIMEZONE'] ?? 'America/Bogota'));
-
 function env(string $key, ?string $default = null): ?string
 {
     $v = $_ENV[$key] ?? getenv($key);
@@ -38,6 +35,10 @@ spl_autoload_register(function (string $class): void {
 });
 require_once __DIR__ . '/MastershopClient.php'; // incluye MastershopException
 require_once __DIR__ . '/DemoSeeder.php';
+require_once __DIR__ . '/Country.php';
+
+// Hora del país de la tienda: fechas de PHP y de MySQL deben coincidir
+date_default_timezone_set(env('APP_TIMEZONE') ?: Country::get('timezone'));
 
 function db(): PDO
 {
@@ -53,7 +54,7 @@ function db(): PDO
                 PDO::ATTR_EMULATE_PREPARES   => false,
             ]
         );
-        // NOW() y CURRENT_TIMESTAMP de MySQL en la misma hora que PHP (Colombia = UTC-5, sin horario de verano)
+        // NOW() y CURRENT_TIMESTAMP de MySQL en la misma hora que PHP (Colombia UTC-5 / Guatemala UTC-6, sin horario de verano)
         $pdo->exec("SET time_zone = '" . date('P') . "'");
         // Completa sola la base de datos si falta algún cambio de versión (no hace falta correr los .sql)
         Migrator::ensure($pdo);
@@ -72,4 +73,30 @@ function mastershop(): MastershopClient
         $client = new MastershopClient($key, env('MASTERSHOP_BASE_URL', 'https://prod.api.mastershop.com'));
     }
     return $client;
+}
+
+/**
+ * Cómo se despachan los pedidos (FULFILLMENT en el .env):
+ *  - mastershop: se envían a Mastershop por API (por defecto si hay MASTERSHOP_API_KEY).
+ *  - dropi:      quedan en cola y Claude los crea en Dropi (ver /api/pedidos en public/api.php).
+ *  - manual:     quedan en cola para despacharlos a mano.
+ */
+function fulfillment(): string
+{
+    $f = strtolower((string) env('FULFILLMENT', ''));
+    if (in_array($f, ['mastershop', 'dropi', 'manual'], true)) {
+        return $f;
+    }
+    return env('MASTERSHOP_API_KEY') ? 'mastershop' : 'manual';
+}
+
+function uses_mastershop(): bool
+{
+    return fulfillment() === 'mastershop';
+}
+
+/** Cliente de Mastershop o null si esta tienda no despacha con Mastershop. */
+function mastershop_or_null(): ?MastershopClient
+{
+    return uses_mastershop() ? mastershop() : null;
 }

@@ -2,7 +2,9 @@
 (() => {
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
-  const money = (n) => '$' + Math.round(n).toLocaleString('es-CO');
+  // Datos del país de la tienda (los pone layout.php): moneda, símbolo, redondeo
+  const TC = Object.assign({ cur: 'COP', sym: '$', loc: 'es-CO', step: 100, ship: 'Incluido a toda Colombia' }, window.TC || {});
+  const money = (n) => TC.sym + Math.round(n).toLocaleString(TC.loc);
 
   // Cerrar el menú móvil al tocar fuera
   const drawer = $('.drawer');
@@ -95,7 +97,7 @@
   const submit = $('[data-submit]', form);
 
   // Misma regla que Pricing::discounted en PHP (redondeo a $100 hacia abajo)
-  const disc = (price, pct) => pct ? Math.floor(price * (100 - pct) / 100 / 100) * 100 : price;
+  const disc = (price, pct) => pct ? Math.floor(price * (100 - pct) / 100 / TC.step) * TC.step : price;
 
   const current = () => {
     const vId = Number((form.querySelector('[name=variant_id]:checked') || form.querySelector('[name=variant_id]'))?.value || 0);
@@ -117,7 +119,7 @@
     const sub = disc(base, Math.min(60, offer.pct + extra)) * qty;
     const ship = cfg.freeFrom > 0 && sub >= cfg.freeFrom ? 0 : cfg.flat;
     $('[data-sum=sub]', form).textContent = money(sub);
-    $('[data-sum=ship]', form).textContent = ship ? money(ship) : 'Incluido a toda Colombia';
+    $('[data-sum=ship]', form).textContent = ship ? money(ship) : TC.ship;
     $('[data-sum=total]', form).textContent = money(sub + ship);
   };
   form.addEventListener('change', update);
@@ -129,9 +131,9 @@
     if (!open.sent) { // una vez por página
       open.sent = true;
       const value = Number(String($('[data-sum=total]', form)?.textContent || '').replace(/\D/g, '')) || cfg.price;
-      window.fbq?.('track', 'InitiateCheckout', { value, currency: 'COP', content_ids: [cfg.msId], content_type: 'product' });
-      window.ttq?.track('InitiateCheckout', { value, currency: 'COP' });
-      if (window.gtag) gtag('event', 'begin_checkout', { value, currency: 'COP' }); else window.dataLayer?.push({ event: 'begin_checkout', ecommerce: { value, currency: 'COP' } });
+      window.fbq?.('track', 'InitiateCheckout', { value, currency: TC.cur, content_ids: [cfg.msId], content_type: 'product' });
+      window.ttq?.track('InitiateCheckout', { value, currency: TC.cur });
+      if (window.gtag) gtag('event', 'begin_checkout', { value, currency: TC.cur }); else window.dataLayer?.push({ event: 'begin_checkout', ecommerce: { value, currency: TC.cur } });
     }
   };
   $$('[data-open-order]').forEach((b) => b.addEventListener('click', open));

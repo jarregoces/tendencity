@@ -6,6 +6,7 @@ declare(strict_types=1);
  */
 if (PHP_SAPI !== 'cli') { exit; }
 require dirname(__DIR__) . '/src/bootstrap.php';
+if (!uses_mastershop()) { echo "Esta tienda no despacha con Mastershop (FULFILLMENT=" . fulfillment() . "): nada que reintentar.\n"; exit(0); }
 
 $lock = fopen(sys_get_temp_dir() . '/ms_retry.lock', 'c');
 if (!flock($lock, LOCK_EX | LOCK_NB)) { exit(0); }

@@ -17,14 +17,14 @@ foreach ($pillars as $pl) {
     if ($items = $catalog->productsIn($pl, 10)) { $tabs[$pl['slug']] = [$pl['name'], $items]; }
 }
 $meta = [
-    'title' => 'Tendencity | Productos en tendencia con pago contraentrega en Colombia',
-    'description' => 'Hogar, tecnología, belleza y bienestar con el envío incluido a toda Colombia. Pide en un minuto y paga en efectivo al recibir.',
+    'title' => 'Tendencity | Productos en tendencia con pago contraentrega en ' . Country::name() . '',
+    'description' => 'Hogar, tecnología, belleza y bienestar con el envío incluido a toda ' . Country::name() . '. Pide en un minuto y paga en efectivo al recibir.',
     'jsonld' => [['@context' => 'https://schema.org', '@type' => 'WebSite', 'name' => 'Tendencity', 'url' => site_url('/'),
         'potentialAction' => ['@type' => 'SearchAction', 'target' => site_url('/buscar/?q={q}'), 'query-input' => 'required name=q']]],
 ];
 $img = fn(?array $b, ?array $fallback) => ($b['image'] ?? null) ?: ($fallback ? product_image($fallback) : null);
 ?>
-<h1 class="sr">Tendencity: productos en tendencia con pago contraentrega en Colombia</h1>
+<h1 class="sr">Tendencity: productos en tendencia con pago contraentrega en <?= e(Country::name()) ?></h1>
 
 <?php /* ============ 1. Banner principal ============ */ if ($hero): ?>
 <section class="wrap hero2<?= stripos($hero['title'] . ' ' . $hero['eyebrow'], 'navidad') !== false ? ' hero2--xmas' : '' ?>">
@@ -68,7 +68,7 @@ $img = fn(?array $b, ?array $fallback) => ($b['image'] ?? null) ?: ($fallback ? 
       <?php if ($mayor['text']): ?><p><?= e($mayor['text']) ?></p><?php endif; ?>
       <ol class="steps">
         <li><b>1</b><span><strong>Pides en 1 minuto</strong>Sin crear cuenta ni tarjeta</span></li>
-        <li><b>2</b><span><strong>Te llega a casa</strong>A cualquier ciudad de Colombia</span></li>
+        <li><b>2</b><span><strong>Te llega a casa</strong>A cualquier ciudad de <?= e(Country::name()) ?></span></li>
         <li><b>3</b><span><strong>Pagas al recibir</strong>En efectivo, al transportador</span></li>
       </ol>
       <div class="btns">
@@ -87,7 +87,7 @@ $img = fn(?array $b, ?array $fallback) => ($b['image'] ?? null) ?: ($fallback ? 
           <text x="60" y="57" text-anchor="middle" font-size="11" font-weight="700" fill="#fff">$0</text>
           <text x="60" y="71" text-anchor="middle" font-size="8" fill="#cfc9dd">de envío</text>
         </svg>
-        <?php if ($mprod && !$mayor['image']): ?><a class="envio__chip" href="/p/<?= e($mprod['slug']) ?>/"><span><?= e(product_title($mprod)) ?></span><strong><?= money($mprod['price']) ?> <small>envío incluido a toda Colombia</small></strong></a><?php endif; ?>
+        <?php if ($mprod && !$mayor['image']): ?><a class="envio__chip" href="/p/<?= e($mprod['slug']) ?>/"><span><?= e(product_title($mprod)) ?></span><strong><?= money($mprod['price']) ?> <small>envío incluido a toda <?= e(Country::name()) ?></small></strong></a><?php endif; ?>
       </div>
     <?php endif; ?>
   </div>

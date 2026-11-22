@@ -50,15 +50,15 @@ $crumbs[] = [$title, null];
 $offer = array_filter([
     '@type'         => 'Offer',
     'url'           => site_url($url),
-    'priceCurrency' => 'COP',
+    'priceCurrency' => Country::currency(),
     'price'         => (int) $p['price'],
     'availability'  => $inStock ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock',
     'itemCondition' => 'https://schema.org/NewCondition',
     'priceValidUntil' => ($offPct && $p['offer_until']) ? date('Y-m-d', strtotime($p['offer_until'])) : null,
     'seller'        => ['@type' => 'Organization', 'name' => 'Tendencity'],
     'shippingDetails' => ['@type' => 'OfferShippingDetails',
-        'shippingDestination' => ['@type' => 'DefinedRegion', 'addressCountry' => 'CO'],
-        'shippingRate' => ['@type' => 'MonetaryAmount', 'value' => (int) setting('shipping_flat', '0'), 'currency' => 'COP']],
+        'shippingDestination' => ['@type' => 'DefinedRegion', 'addressCountry' => Country::code()],
+        'shippingRate' => ['@type' => 'MonetaryAmount', 'value' => (int) setting('shipping_flat', '0'), 'currency' => Country::currency()]],
 ]);
 $meta['jsonld'][] = array_filter([
     '@context'    => 'https://schema.org',
@@ -81,7 +81,7 @@ if ($s = faq_schema($faq)) { $meta['jsonld'][] = $s; }
 // Píxeles: ViewContent (Meta / TikTok) y view_item (GA4)
 $meta['events'] = [['ViewContent', [
     'content_ids' => [(string) ($p['sku'] ?: ($p['ms_product_id'] ?: $p['id']))], 'content_type' => 'product', 'content_name' => $title,
-    'value' => (int) $p['price'], 'currency' => 'COP',
+    'value' => (int) $p['price'], 'currency' => Country::currency(),
     'items' => [['item_id' => (string) ($p['sku'] ?: ($p['ms_product_id'] ?: $p['id'])), 'item_name' => $title, 'item_category' => $cat['name'] ?? null, 'price' => (int) $p['price']]],
 ]]];
 

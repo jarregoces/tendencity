@@ -1,8 +1,8 @@
 <?php
 /** @var string $content  @var array $meta */
 $meta = ($meta ?? []) + [
-    'title'       => 'Tendencity | Tendencias con pago contraentrega en Colombia',
-    'description' => 'Productos en tendencia para tu hogar, tecnología y cuidado personal. Envío incluido a toda Colombia y pagas al recibir.',
+    'title'       => 'Tendencity | Tendencias con pago contraentrega en ' . Country::name() . '',
+    'description' => 'Productos en tendencia para tu hogar, tecnología y cuidado personal. Envío incluido a toda ' . Country::name() . ' y pagas al recibir.',
     'canonical'   => site_url(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH)),
     'robots'      => 'index, follow',
     'image'       => site_url('/assets/img/logo.png'),
@@ -12,7 +12,7 @@ $meta = ($meta ?? []) + [
 $menu = (new Catalog(db()))->tree();
 $announcement = setting('announcement');
 ?><!doctype html>
-<html lang="es-CO">
+<html lang="<?= e(Country::get('locale')) ?>">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -25,7 +25,7 @@ $announcement = setting('announcement');
 <meta property="og:description" content="<?= e($meta['description']) ?>">
 <meta property="og:url" content="<?= e($meta['canonical']) ?>">
 <meta property="og:image" content="<?= e($meta['image']) ?>">
-<meta property="og:locale" content="es_CO">
+<meta property="og:locale" content="<?= e(Country::get('og_locale')) ?>">
 <meta property="og:site_name" content="Tendencity">
 <meta name="theme-color" content="#8E62F0">
 <link rel="icon" type="image/png" href="/assets/img/favicon.png">
@@ -47,7 +47,7 @@ $announcement = setting('announcement');
     <?php
     // Marquesina: frases separadas por · o | en Ajustes → «Texto de la barra superior»
     $phrases = array_values(array_filter(array_map('trim', preg_split('/[·|]/u', (string) ($announcement ?: '')))));
-    if (!$phrases) { $phrases = ['Pago en casa', shipping_included() ? 'Envío gratis a toda Colombia' : 'Envíos a toda Colombia']; }
+    if (!$phrases) { $phrases = ['Pago en casa', shipping_included() ? 'Envío gratis ' . Country::toAll() : 'Envíos ' . Country::toAll()]; }
     $group = '';
     for ($k = 0; $k < 4; $k++) { foreach ($phrases as $ph) { $group .= '<span class="ticker__i">' . e($ph) . '</span><span class="ticker__sep" aria-hidden="true">✦</span>'; } }
     ?>
@@ -122,14 +122,14 @@ $announcement = setting('announcement');
   <div class="wrap"><nav aria-label="Información legal">
     <a href="/terminos/" target="_blank">Términos y condiciones</a><a href="/politica-de-privacidad/" target="_blank">Política de privacidad</a>
     <a href="/garantias-y-devoluciones/" target="_blank">Garantías y devoluciones</a><a href="https://www.sic.gov.co" rel="noopener" target="_blank">Superintendencia de Industria y Comercio</a>
-  </nav><p>© <?= date('Y') ?> Tendencity. Precios en pesos colombianos, IVA incluido. · Desarrollado por <a href="https://yabandu.com" target="_blank" rel="noopener">yabandu.com</a></p></div>
+  </nav><p>© <?= date('Y') ?> Tendencity. Precios en <?= e(Country::get('currency_name')) ?>, IVA incluido. · Desarrollado por <a href="https://yabandu.com" target="_blank" rel="noopener">yabandu.com</a></p></div>
 </footer>
 <?php else: ?>
 <footer class="foot">
   <div class="wrap foot__in">
     <div class="foot__brand">
       <img src="/assets/img/logo-white.png" alt="Tendencity" width="150" height="31" loading="lazy">
-      <p>Productos en tendencia con envío a toda Colombia. Pagas cuando lo recibes en tu casa.</p>
+      <p>Productos en tendencia con envío a toda <?= e(Country::name()) ?>. Pagas cuando lo recibes en tu casa.</p>
     </div>
     <nav aria-label="Categorías">
       <h2>Categorías</h2>
@@ -151,9 +151,10 @@ $announcement = setting('announcement');
       <a href="https://www.sic.gov.co" rel="noopener" target="_blank">Superintendencia de Industria y Comercio</a>
     </nav>
   </div>
-  <p class="wrap foot__legal">© <?= date('Y') ?> Tendencity. Precios en pesos colombianos, IVA incluido. · Desarrollado por <a href="https://yabandu.com" target="_blank" rel="noopener">yabandu.com</a></p>
+  <p class="wrap foot__legal">© <?= date('Y') ?> Tendencity. Precios en <?= e(Country::get('currency_name')) ?>, IVA incluido. · Desarrollado por <a href="https://yabandu.com" target="_blank" rel="noopener">yabandu.com</a></p>
 </footer>
 <?php endif; ?>
+<?= country_js() ?>
 <script src="<?= asset('js/app.js') ?>" defer></script>
 </body>
 </html>

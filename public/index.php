@@ -14,9 +14,10 @@ $catalog = new Catalog(db());
 if ($path === '/sitemap.xml') { require dirname(__DIR__) . '/src/sitemap.php'; exit; }
 if ($path === '/robots.txt') {
     header('Content-Type: text/plain; charset=utf-8');
-    echo "User-agent: *\nDisallow: /admin/\nDisallow: /pedido\nDisallow: /evento\nDisallow: /buscar/\nDisallow: /pedido-confirmado/\nSitemap: " . site_url('/sitemap.xml') . "\n";
+    echo "User-agent: *\nDisallow: /admin/\nDisallow: /api/\nDisallow: /pedido\nDisallow: /evento\nDisallow: /buscar/\nDisallow: /pedido-confirmado/\nSitemap: " . site_url('/sitemap.xml') . "\n";
     exit;
 }
+if (str_starts_with($path, '/api/')) { require dirname(__DIR__) . '/src/api_endpoint.php'; exit; }
 if ($path === '/pedido' && $method === 'POST') { require dirname(__DIR__) . '/src/order_endpoint.php'; exit; }
 if ($path === '/evento' && $method === 'POST') {
     $in = json_decode(file_get_contents('php://input'), true) ?: [];

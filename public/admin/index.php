@@ -73,10 +73,12 @@ header('X-Robots-Tag: noindex, nofollow');
 header('X-Frame-Options: DENY');
 
 const SETTINGS = [
-    'whatsapp'            => ['WhatsApp de soporte (con 57, sin +; ej. 573182165374)', 'text'],
+    'whatsapp'            => ['WhatsApp de soporte (con indicativo, sin +; ej. 573182165374 en Colombia o 50255551234 en Guatemala)', 'text'],
     'announcement'        => ['Barra superior', 'text'],
     'shipping_flat'       => ['Costo de envío que cobras (0 = gratis)', 'text'],
     'shipping_free_from'  => ['Envío gratis desde (0 = no aplica)', 'text'],
+    'pia_global'          => ['Pago anticipado en TODOS los productos (1 = sí, 0 = solo en los que lo tengan activado)', 'text'],
+    'pia_global_discount' => ['% de descuento por pago anticipado para todos (los productos con su propio % lo conservan)', 'text'],
     'pia_instructions'    => ['Instrucciones de pago anticipado', 'textarea'],
     'black_friday_active' => ['Black Friday activo (1 = sí)', 'text'],
     'black_friday_text'   => ['Texto de la landing Black Friday', 'textarea'],
@@ -204,12 +206,29 @@ if ($isPost) {
     if (in_array($action, ['upload_images', 'delete_image', 'cover_image', 'toggle_featured', 'save_badge', 'save_hero', 'save_page'], true)) {
         handle_extra_post($db, $action);
     }
-    $orders = new OrderService($db, mastershop());
+    $orders = new OrderService($db, mastershop_or_null());
 
     if ($action === 'mark_paid') {
         $ok = $orders->markPaidAndPush((int) $_POST['id'], 'manual', trim((string) $_POST['ref']) ?: 'admin');
-        flash($ok ? 'Pago registrado y pedido enviado a Mastershop.' : 'Pago registrado, pero Mastershop falló. Revisa el error y reintenta.', $ok ? 'ok' : 'bad');
+        if (!uses_mastershop()) {
+            flash('Pago registrado. El pedido quedó en «Por despachar» para crearlo en Dropi.');
+        } else {
+            flash($ok ? 'Pago registrado y pedido enviado a Mastershop.' : 'Pago registrado, pero Mastershop falló. Revisa el error y reintenta.', $ok ? 'ok' : 'bad');
+        }
         back('?p=pedidos');
+    }
+    if ($action === 'mark_dispatched') {
+        $ref = trim((string) ($_POST['ref'] ?? ''));
+        if ($ref === '') { flash('Escribe el número del pedido en Dropi.', 'bad'); back('?p=pedidos&f=cola'); }
+        $orders->markDispatched((int) $_POST['id'], $ref, trim((string) ($_POST['carrier'] ?? '')) ?: null, trim((string) ($_POST['tracking'] ?? '')) ?: null);
+        flash('Pedido marcado como creado en Dropi.');
+        back('?p=pedidos&f=cola');
+    }
+    if ($action === 'retry' && !uses_mastershop()) {
+        // Sin Mastershop, "Reintentar" devuelve el pedido a la cola de despacho
+        $db->prepare("UPDATE orders SET sync_status = 'pendiente_envio', sync_error = NULL WHERE id = ? AND sync_status = 'error'")->execute([(int) $_POST['id']]);
+        flash('El pedido volvió a «Por despachar».');
+        back('?p=pedidos&f=cola');
     }
     if ($action === 'retry') {
         $ok = $orders->pushToMastershop((int) $_POST['id']);
@@ -348,6 +367,7 @@ case 'pedidos':
         'error'     => "WHERE sync_status = 'error' AND COALESCE(sync_error, '') NOT LIKE 'Despacho manual%'",
         'manual'    => "WHERE sync_status = 'error' AND sync_error LIKE 'Despacho manual%'",
         'por_pagar' => "WHERE payment_method = 'pia' AND payment_status = 'pendiente'",
+        'cola'      => "WHERE sync_status = 'pendiente_envio' AND (payment_method = 'cod' OR payment_status = 'pagado')",
         'novedad'   => 'WHERE novelty IS NOT NULL AND ms_status_id = 6',
         default     => '',
     };
@@ -356,22 +376,25 @@ case 'pedidos':
     $rows = $db->query("SELECT * FROM orders {$where} ORDER BY id DESC LIMIT 50 OFFSET {$off}")->fetchAll(); ?>
     <h1>Pedidos</h1>
     <nav class="tabs">
-      <?php foreach (['' => 'Todos', 'manual' => 'Despacho manual', 'error' => 'Con error', 'por_pagar' => 'Pago anticipado pendiente', 'novedad' => 'Con novedad'] as $k => $l): ?>
+      <?php $tabs = uses_mastershop()
+          ? ['' => 'Todos', 'manual' => 'Despacho manual', 'error' => 'Con error', 'por_pagar' => 'Pago anticipado pendiente', 'novedad' => 'Con novedad']
+          : ['' => 'Todos', 'cola' => 'Por despachar (' . ucfirst(fulfillment()) . ')', 'error' => 'Con error', 'por_pagar' => 'Pago anticipado pendiente'];
+      foreach ($tabs as $k => $l): ?>
         <a href="?p=pedidos&f=<?= e($k) ?>" class="<?= $f === $k ? 'on' : '' ?>"><?= e($l) ?></a>
       <?php endforeach; ?>
     </nav>
     <table class="t">
-      <thead><tr><th>Pedido</th><th>Cliente</th><th>Total</th><th>Origen</th><th>Pago</th><th>Mastershop</th><th>Envío</th><th></th></tr></thead>
+      <thead><tr><th>Pedido</th><th>Cliente</th><th>Total</th><th>Origen</th><th>Pago</th><th><?= uses_mastershop() ? 'Mastershop' : e(ucfirst(fulfillment())) ?></th><th>Envío</th><th></th></tr></thead>
       <tbody>
       <?php foreach ($rows as $o): $c = json_decode($o['customer'], true); $a = json_decode($o['shipping_address'], true); ?>
         <tr>
           <td><strong><?= e($o['external_id']) ?></strong><br><small><?= e(date('d/m H:i', strtotime($o['created_at']))) ?></small></td>
           <td><?= e($c['full_name'] ?? '') ?><br><small><?= e(($a['city'] ?? '') . ', ' . ($a['state'] ?? '')) ?></small><br>
-            <a href="https://wa.me/57<?= e($c['phone'] ?? '') ?>" target="_blank" rel="noopener"><?= e($c['phone'] ?? '') ?></a></td>
+            <a href="<?= e(wa_customer((string) ($c['phone'] ?? ''))) ?>" target="_blank" rel="noopener"><?= e($c['phone'] ?? '') ?></a></td>
           <td><?= money($o['total']) ?></td>
           <td><?= e(Stats::CHANNELS[$o['channel'] ?? 'directo'] ?? (string) $o['channel']) ?><?php if ($o['source'] || $o['campaign']): ?><br><small><?= e(trim(($o['source'] ?? '') . ' · ' . ($o['campaign'] ?? ''), ' ·')) ?></small><?php endif; ?></td>
           <td><?= $o['payment_method'] === 'cod' ? 'Contraentrega' : 'Anticipado' ?><br><small><?= e($o['payment_status']) ?></small></td>
-          <td><?= e($o['sync_status']) ?><?= $o['ms_order_id'] ? '<br><small>#' . (int) $o['ms_order_id'] . '</small>' : '' ?>
+          <td><?= e($o['sync_status']) ?><?= $o['ms_order_id'] ? '<br><small>#' . (int) $o['ms_order_id'] . '</small>' : '' ?><?= !empty($o['fulfillment_ref']) ? '<br><small>#' . e($o['fulfillment_ref']) . '</small>' : '' ?>
             <?php if ($o['sync_error']): ?><details><summary class="bad">Ver error</summary><small><?= e($o['sync_error']) ?></small></details><?php endif; ?></td>
           <td><?= e(WebhookProcessor::STATUS[(int) $o['ms_status_id']] ?? '—') ?>
             <?php if ($o['carrier_status']): ?><br><small><?= e($o['carrier_status']) ?></small><?php endif; ?>
@@ -380,6 +403,9 @@ case 'pedidos':
             <?php if ($o['payment_method'] === 'pia' && $o['payment_status'] === 'pendiente'): ?>
               <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="mark_paid"><input type="hidden" name="id" value="<?= (int) $o['id'] ?>">
                 <input name="ref" placeholder="Ref. del pago" size="10"><button>Marcar pagado</button></form>
+            <?php elseif (!uses_mastershop() && $o['sync_status'] === 'pendiente_envio'): ?>
+              <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="mark_dispatched"><input type="hidden" name="id" value="<?= (int) $o['id'] ?>">
+                <input name="ref" placeholder="N.º en Dropi" size="9" required><button>Ya está en Dropi</button></form>
             <?php elseif ($o['sync_status'] !== 'enviado'): ?>
               <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="retry"><input type="hidden" name="id" value="<?= (int) $o['id'] ?>"><button>Reintentar</button></form>
             <?php endif; ?>

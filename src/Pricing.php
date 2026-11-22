@@ -7,14 +7,30 @@ declare(strict_types=1);
  */
 final class Pricing
 {
-    /** Precio con descuento, redondeado a $100 hacia abajo (precios "limpios" en COP). */
+    /** Precio con descuento, redondeado hacia abajo a un valor "limpio" ($100 en COP, Q1 en GTQ). */
     public static function discounted(int $price, int $pct): int
     {
         $pct = max(0, min(90, $pct));
         if ($pct === 0) {
             return $price;
         }
-        return (int) (floor($price * (100 - $pct) / 100 / 100) * 100);
+        $step = (int) Country::get('round_step');
+        return (int) (floor($price * (100 - $pct) / 100 / $step) * $step);
+    }
+
+    /**
+     * Pago anticipado general de la tienda (Ajustes → "Pago anticipado en todos los productos").
+     * Si está activo, todo producto lo ofrece; un producto con su propio % lo conserva.
+     */
+    public static function withStoreDefaults(array $p): array
+    {
+        if (setting('pia_global', '0') === '1') {
+            $p['allow_pia'] = 1;
+            if ((int) ($p['pia_discount'] ?? 0) <= 0) {
+                $p['pia_discount'] = max(0, min(30, (int) setting('pia_global_discount', '5')));
+            }
+        }
+        return $p;
     }
 
     /** Oferta activa = hay precio anterior mayor y (sin fecha o fecha futura). */
@@ -89,7 +105,7 @@ final class Pricing
 
     /**
      * Precio de venta = costo + flete + publicidad (si el producto lleva) + utilidad,
-     * cerrado en ...900. Utilidad = el mayor entre % sobre el costo y la utilidad mínima en pesos.
+     * cerrado en ...900 (COP) o ...9 (GTQ). Utilidad = el mayor entre % sobre el costo y la utilidad mínima.
      * @return array{precio:int, flete:int, publicidad:int, utilidad:int}|null
      */
     public static function calculate(int $cost, bool $withAds): ?array
@@ -101,8 +117,10 @@ final class Pricing
         $pub = $withAds ? (int) setting('calc_publicidad', '0') : 0;
         $util = (int) max(round($cost * (float) str_replace(',', '.', (string) setting('calc_utilidad_pct', '0')) / 100), (int) setting('calc_utilidad_min', '0'));
         $raw = $cost + $flete + $pub + $util;
-        $precio = (int) (ceil($raw / 1000) * 1000 - 100);
-        if ($precio < $raw) { $precio += 1000; }
+        $stepP = (int) Country::get('price_step');
+        $back = (int) Country::get('price_back');
+        $precio = (int) (ceil($raw / $stepP) * $stepP - $back);
+        if ($precio < $raw) { $precio += $stepP; }
         return ['precio' => $precio, 'flete' => $flete, 'publicidad' => $pub, 'utilidad' => $precio - $cost - $flete - $pub];
     }
 

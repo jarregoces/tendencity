@@ -23,7 +23,7 @@ final class MetaCapi
     public static function userData(array $customer, array $address, ?string $visitorId = null): array
     {
         $phone = preg_replace('/\D/', '', (string) ($customer['phone'] ?? ''));
-        if (strlen($phone) === 10) { $phone = '57' . $phone; }
+        $phone = Country::intlPhone($phone);
         $norm = fn($s) => preg_replace('/[^a-z]/', '', iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', mb_strtolower((string) $s)) ?: '');
         $email = $customer['email'] ?? '';
         if ($email === env('FALLBACK_EMAIL', 'pedidos@tendencity.store')) { $email = ''; } // el correo de respaldo no es del cliente
@@ -34,7 +34,7 @@ final class MetaCapi
             'ln' => ($v = self::h($norm($customer['last_name'] ?? ''))) ? [$v] : null,
             'ct' => ($v = self::h($norm($address['city'] ?? ''))) ? [$v] : null,
             'st' => ($v = self::h($norm($address['state'] ?? ''))) ? [$v] : null,
-            'country' => [hash('sha256', 'co')],
+            'country' => [hash('sha256', strtolower(Country::code()))],
             'external_id' => $visitorId ? [hash('sha256', $visitorId)] : null,
             'client_ip_address' => $_SERVER['REMOTE_ADDR'] ?? null,
             'client_user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? null,
@@ -84,7 +84,7 @@ final class MetaCapi
         $visitor = preg_match('/^[a-f0-9]{16}$/', (string) ($_COOKIE['td_v'] ?? '')) ? $_COOKIE['td_v'] : null;
         self::send('Purchase', $o['external_id'],
             self::userData(json_decode($o['customer'], true) ?: [], json_decode($o['shipping_address'], true) ?: [], $visitor),
-            ['currency' => 'COP', 'value' => (int) $o['total'], 'order_id' => $o['external_id'], 'content_type' => 'product',
+            ['currency' => Country::currency(), 'value' => (int) $o['total'], 'order_id' => $o['external_id'], 'content_type' => 'product',
              'content_ids' => array_map(fn($i) => (string) $i['cid'], $items),
              'contents' => array_map(fn($i) => ['id' => (string) $i['cid'], 'quantity' => (int) $i['quantity'], 'item_price' => (int) $i['unit_price']], $items),
              'num_items' => array_sum(array_column($items, 'quantity'))],

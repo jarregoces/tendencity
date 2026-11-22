@@ -13,7 +13,7 @@ $cfg = [
     'flat'      => (int) setting('shipping_flat', '0'),
     'freeFrom'  => (int) setting('shipping_free_from', '0'),
 ];
-$departamentos = ['Amazonas','Antioquia','Arauca','Atlántico','Bogotá D.C.','Bolívar','Boyacá','Caldas','Caquetá','Casanare','Cauca','Cesar','Chocó','Córdoba','Cundinamarca','Guainía','Guaviare','Huila','La Guajira','Magdalena','Meta','Nariño','Norte de Santander','Putumayo','Quindío','Risaralda','San Andrés y Providencia','Santander','Sucre','Tolima','Valle del Cauca','Vaupés','Vichada'];
+$departamentos = Country::get('regions');
 ?>
 <dialog class="order" id="order" aria-labelledby="order-t">
   <form class="order__form" method="post" action="/pedido" novalidate data-cfg='<?= e(json_encode($cfg)) ?>'>
@@ -63,20 +63,20 @@ $departamentos = ['Amazonas','Antioquia','Arauca','Atlántico','Bogotá D.C.','B
       <label class="field"><span>Nombre y apellido</span>
         <input name="full_name" autocomplete="name" required minlength="5" placeholder="Ej: Carlos Pérez"></label>
       <label class="field"><span>Celular (WhatsApp)</span>
-        <input name="phone" type="tel" inputmode="numeric" autocomplete="tel-national" required pattern="3[0-9]{9}" maxlength="10" placeholder="3001234567"></label>
+        <input name="phone" type="tel" inputmode="numeric" autocomplete="tel-national" required pattern="<?= e(Country::get('phone_pattern')) ?>" maxlength="<?= (int) Country::get('phone_digits') ?>" placeholder="<?= e(Country::get('phone_example')) ?>"></label>
       <div class="field-row">
-        <label class="field"><span>Departamento</span>
+        <label class="field"><span><?= e(Country::get('region_label')) ?></span>
           <select name="state" required autocomplete="address-level1">
             <option value="">Elige…</option>
             <?php foreach ($departamentos as $d): ?><option><?= e($d) ?></option><?php endforeach; ?>
           </select></label>
-        <label class="field"><span>Ciudad o municipio</span>
+        <label class="field"><span><?= e(Country::get('city_label')) ?></span>
           <input name="city" required autocomplete="address-level2"></label>
       </div>
       <label class="field"><span>Dirección</span>
-        <input name="address1" required autocomplete="address-line1" placeholder="Calle 10 # 20-30"></label>
+        <input name="address1" required autocomplete="address-line1" placeholder="<?= e(Country::get('address_example')) ?>"></label>
       <div class="field-row">
-        <label class="field"><span>Barrio</span><input name="district"></label>
+        <label class="field"><span><?= e(Country::get('district_label')) ?></span><input name="district"></label>
         <label class="field"><span>Apto, casa o referencia <small>(opcional)</small></span>
           <input name="address2" autocomplete="address-line2"></label>
       </div>
@@ -90,7 +90,7 @@ $departamentos = ['Amazonas','Antioquia','Arauca','Atlántico','Bogotá D.C.','B
       <label class="pay"><input type="radio" name="payment_method" value="cod" checked>
         <span><strong>Pago contraentrega</strong> En efectivo cuando recibes</span></label>
       <label class="pay"><input type="radio" name="payment_method" value="pia">
-        <span><strong>Pago anticipado<?= $p['pia_discount'] ? ' – ' . (int) $p['pia_discount'] . '% menos' : '' ?></strong> Nequi, Daviplata o transferencia</span></label>
+        <span><strong>Pago anticipado<?= $p['pia_discount'] ? ' – ' . (int) $p['pia_discount'] . '% menos' : '' ?></strong> <?= e(Country::get('pia_methods')) ?></span></label>
     </fieldset>
     <?php else: ?>
       <input type="hidden" name="payment_method" value="<?= $p['allow_cod'] ? 'cod' : 'pia' ?>">

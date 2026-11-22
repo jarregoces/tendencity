@@ -93,7 +93,8 @@ final class Catalog
     {
         $st = $this->db->prepare('SELECT * FROM products WHERE slug = ? AND is_active = 1');
         $st->execute([$slug]);
-        return $st->fetch() ?: null;
+        $p = $st->fetch();
+        return $p ? Pricing::withStoreDefaults($p) : null;
     }
 
     public function productById(int $id): ?array

@@ -46,7 +46,7 @@ function pixel_event_js(string $name, array $data = [], ?string $eventId = null)
     $s = "window.fbq&&fbq('track'," . $j($name) . ',' . $j((object) $fbData) . ($eventId ? ',{eventID:' . $j($eventId) . '}' : '') . ");\n";
     $s .= "window.ttq&&ttq.track(" . $j($name === 'Purchase' ? 'CompletePayment' : $name) . ',' . $j((object) $fbData) . ");\n";
     if ($ga) {
-        $gaData = ['currency' => $data['currency'] ?? 'COP', 'value' => $data['value'] ?? 0,
+        $gaData = ['currency' => $data['currency'] ?? Country::currency(), 'value' => $data['value'] ?? 0,
                    'items' => $data['items'] ?? []] + ($eventId ? ['transaction_id' => $eventId] : []);
         $s .= "window.gtag?gtag('event'," . $j($ga) . ',' . $j($gaData) . "):dataLayer.push({event:" . $j($ga) . ',ecommerce:' . $j($gaData) . "});\n";
     }

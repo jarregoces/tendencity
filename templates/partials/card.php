@@ -13,7 +13,7 @@
       <strong><?= money($p['price']) ?></strong>
       <?php if ($off): ?><s><?= money($p['price_before']) ?></s><?php endif; ?>
     </p>
-    <?php if (shipping_included()): ?><span class="card__ship">Envío incluido a toda Colombia</span><?php endif; ?>
+    <?php if (shipping_included()): ?><span class="card__ship">Envío incluido a toda <?= e(Country::name()) ?></span><?php endif; ?>
   </a>
   <div class="card__actions">
     <?php if ($out): ?>

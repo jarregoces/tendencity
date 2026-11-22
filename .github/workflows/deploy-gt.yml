@@ -1,0 +1,42 @@
+name: Desplegar tienda Guatemala
+
+# Se ejecuta al actualizar main, o a mano desde la pestaña Actions ("Run workflow").
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-gt
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: guatemala
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Revisar sintaxis PHP
+        run: find src public cli templates -name '*.php' -print0 | xargs -0 -n1 php -l > /dev/null
+
+      # Sube el proyecto a una carpeta FUERA de public_html (por defecto tendencity-gt/).
+      # En cPanel, el subdominio debe apuntar a <carpeta>/public.
+      # Nunca toca: .env (claves), public/uploads/ (fotos subidas desde el panel) ni logs/.
+      - name: Subir por FTP a cPanel
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          server-dir: ${{ vars.SERVER_DIR || 'tendencity-gt/' }}
+          exclude: |
+            **/.git*
+            **/.git*/**
+            .github/**
+            .env
+            .env.*
+            public/uploads/**
+            logs/**
+            README.md

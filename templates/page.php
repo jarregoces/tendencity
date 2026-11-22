@@ -1,6 +1,8 @@
 <?php
 /** @var string $slug, $title — el contenido vive en templates/pages/{slug}.md */
 $file = __DIR__ . "/pages/{$slug}.md";
+$local = __DIR__ . '/pages/' . strtolower(Country::code()) . "/{$slug}.md";   // versión del país (pages/gt/…)
+if (!Country::isCO() && is_file($local)) { $file = $local; }
 $meta = ['title' => "{$title} | Tendencity", 'description' => "{$title} de Tendencity.",
     'robots' => in_array($slug, ['terminos', 'politica-de-privacidad'], true) ? 'noindex, follow' : 'index, follow'];
 ?>

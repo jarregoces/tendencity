@@ -21,7 +21,7 @@ if ($product && $r['rating']) {
         'positiveNotes' => $pros ? ['@type' => 'ItemList', 'itemListElement' => array_map(fn($x, $i) => ['@type' => 'ListItem', 'position' => $i + 1, 'name' => $x], $pros, array_keys($pros))] : null,
         'negativeNotes' => $cons ? ['@type' => 'ItemList', 'itemListElement' => array_map(fn($x, $i) => ['@type' => 'ListItem', 'position' => $i + 1, 'name' => $x], $cons, array_keys($cons))] : null,
         'itemReviewed' => ['@type' => 'Product', 'name' => product_title($product), 'image' => product_image($product),
-            'offers' => ['@type' => 'Offer', 'price' => (int) $product['price'], 'priceCurrency' => 'COP', 'url' => site_url("/p/{$product['slug']}/")]],
+            'offers' => ['@type' => 'Offer', 'price' => (int) $product['price'], 'priceCurrency' => Country::currency(), 'url' => site_url("/p/{$product['slug']}/")]],
     ]);
 }
 ?>

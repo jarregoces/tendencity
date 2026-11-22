@@ -35,6 +35,7 @@ db()->prepare('INSERT INTO order_attempts (ip) VALUES (?)')->execute([$ip]);
 $st = db()->prepare('SELECT * FROM products WHERE id = ? AND is_active = 1');
 $st->execute([(int) ($in['product_id'] ?? 0)]);
 $p = $st->fetch() ?: $fail('Este producto ya no está disponible.', 404);
+$p = Pricing::withStoreDefaults($p);
 
 $variants = (new Catalog(db()))->variants((int) $p['id']);
 $variantId = (int) ($in['variant_id'] ?? 0);
@@ -77,7 +78,7 @@ $first = count($parts) >= 4 ? implode(' ', array_slice($parts, 0, 2)) : $parts[0
 $last  = trim(substr($full, strlen($first)));
 
 try {
-    $service = new OrderService(db(), mastershop());
+    $service = new OrderService(db(), mastershop_or_null());
     $orderId = $service->createLocalOrder(
         [['variant_id' => $variantId, 'qty' => $qty]],
         [

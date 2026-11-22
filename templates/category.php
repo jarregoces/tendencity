@@ -12,7 +12,7 @@ $reviewsHere = $catalog->reviews((int) $pillar['id'], 3);   // puente temático 
 
 $meta = [
     'title' => ($cat['meta_title'] ?: "{$cat['name']} con pago contraentrega | Tendencity") . ($pg > 1 ? " · Página {$pg}" : ''),
-    'description' => ($cat['meta_description'] ?: "Compra {$cat['name']} con envío a toda Colombia y paga al recibir. {$total} productos disponibles.") . ($pg > 1 ? " Página {$pg} de {$pages}." : ''),
+    'description' => ($cat['meta_description'] ?: "Compra {$cat['name']} con envío " . Country::toAll() . " y paga al recibir. {$total} productos disponibles.") . ($pg > 1 ? " Página {$pg} de {$pages}." : ''),
     // Cada página es su propia URL canónica (la 1 sin parámetro)
     'canonical' => page_url($url, $pg),
     // Sin productos no se indexa: evita páginas delgadas

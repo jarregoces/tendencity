@@ -59,7 +59,7 @@ require __DIR__ . '/partials/product_data.php';
     <?php endif; ?>
 
     <ul class="assure">
-      <li><?= shipping_included() ? '<strong>Envío incluido</strong> a toda Colombia' : 'Envío a toda Colombia' ?></li>
+      <li><?= shipping_included() ? '<strong>Envío incluido</strong> ' . e(Country::toAll()) : 'Envío ' . e(Country::toAll()) ?></li>
       <?php if ($p['allow_cod']): ?><li>Pagas en efectivo al recibir</li><?php endif; ?>
       <?php if ($p['allow_pia'] && $p['pia_discount']): ?><li><?= (int) $p['pia_discount'] ?>% menos si pagas por adelantado</li><?php endif; ?>
       <?php if ($p['aida_guarantee']): ?><li><?= e($p['aida_guarantee']) ?></li><?php endif; ?>

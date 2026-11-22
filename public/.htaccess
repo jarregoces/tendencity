@@ -1,6 +1,8 @@
 # Apache: todo pasa por index.php salvo archivos reales
 Options -Indexes
 RewriteEngine On
+# Algunos hostings (PHP-FPM) no pasan el header Authorization a PHP: la API lo necesita
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
 RewriteCond %{REQUEST_FILENAME} -f
 RewriteRule ^ - [L]
 RewriteRule ^admin/?$ admin/index.php [L]
