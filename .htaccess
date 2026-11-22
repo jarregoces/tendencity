@@ -1,0 +1,7 @@
+# Si el hosting no deja apuntar el dominio a public/, este archivo bloquea el resto
+# y manda todo a public/.
+RewriteEngine On
+RewriteRule ^(src|cli|sql|templates)(/|$) - [F,L]
+RewriteRule ^\.env - [F,L]
+RewriteCond %{REQUEST_URI} !^/public/
+RewriteRule ^(.*)$ public/$1 [L]

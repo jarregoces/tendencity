@@ -1,0 +1,16 @@
+# Claves y configuración del servidor: NUNCA a GitHub
+.env
+.env.*
+!.env.example
+
+# Fotos subidas desde el panel: viven solo en el servidor
+public/uploads/*
+!public/uploads/README.txt
+
+# Registros
+logs/
+*.log
+
+.DS_Store
+.idea/
+.vscode/
