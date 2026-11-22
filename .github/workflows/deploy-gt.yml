@@ -3,7 +3,8 @@ name: Desplegar tienda Guatemala
 # Se ejecuta al actualizar main, o a mano desde la pestaña Actions ("Run workflow").
 on:
   push:
-    branches: [main]
+    # La rama claude/… está solo mientras probamos (el repositorio aún no tiene main). Quítala después.
+    branches: [main, claude/eager-volta-hgq4ut]
   workflow_dispatch:
 
 concurrency:
