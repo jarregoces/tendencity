@@ -14,6 +14,7 @@ declare(strict_types=1);
  *   POST /api/pedidos/{ref}/error       {"error":"Sin cobertura en el municipio"}
  *   POST /api/productos/importar        archivo .xlsx/.csv (campo "archivo") con el formato de la carga masiva
  *   GET  /api/ajustes                   ajustes editables
+ *   POST /api/testimonios  {"sku":"4664+28315","items":[{"name":"Ana P.","city":"","rating":5,"text":"…"}]}
  *   POST /api/ajustes   {"whatsapp":"573182165374","pia_global":"0"}  cambia ajustes (solo los permitidos)
  *
  * Productos compuestos: un SKU "4664+28315" son dos productos de Dropi que se envían juntos
@@ -174,6 +175,29 @@ if (($seg[1] ?? '') === 'ajustes') {
     $st = $db->prepare("SELECT k, v FROM settings WHERE k IN ($in)");
     $st->execute(API_SETTINGS);
     $out(['ok' => true, 'settings' => $st->fetchAll(PDO::FETCH_KEY_PAIR)]);
+}
+
+// POST /api/testimonios — testimonios reales de clientes para un producto (no duplica)
+if (($seg[1] ?? '') === 'testimonios' && $method === 'POST') {
+    $st = $db->prepare('SELECT id FROM products WHERE sku = ? OR slug = ? LIMIT 1');
+    $st->execute([(string) ($body['sku'] ?? ''), (string) ($body['slug'] ?? '')]);
+    $pid = (int) $st->fetchColumn();
+    if (!$pid) {
+        $out(['ok' => false, 'error' => 'Producto no encontrado (envía sku o slug)'], 404);
+    }
+    $dup = $db->prepare('SELECT 1 FROM testimonials WHERE product_id = ? AND name = ? AND text = ?');
+    $ins = $db->prepare('INSERT INTO testimonials (product_id, name, city, rating, text, sort) VALUES (?, ?, ?, ?, ?, ?)');
+    $added = 0; $skipped = 0;
+    foreach ((array) ($body['items'] ?? []) as $k => $t) {
+        $name = mb_substr(trim((string) ($t['name'] ?? '')), 0, 80);
+        $text = mb_substr(trim((string) ($t['text'] ?? '')), 0, 600);
+        if ($name === '' || $text === '') { $skipped++; continue; }
+        $dup->execute([$pid, $name, $text]);
+        if ($dup->fetchColumn()) { $skipped++; continue; }
+        $ins->execute([$pid, $name, trim((string) ($t['city'] ?? '')) ?: null, max(1, min(5, (int) ($t['rating'] ?? 5))), $text, (int) $k]);
+        $added++;
+    }
+    $out(['ok' => true, 'product_id' => $pid, 'added' => $added, 'skipped' => $skipped]);
 }
 
 if (($seg[1] ?? '') !== 'pedidos') {
