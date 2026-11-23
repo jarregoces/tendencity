@@ -39,9 +39,8 @@ $ico = fn($d) => '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="t
 <section class="wrap thanks">
   <div class="thanks__card thanks__empty">
     <h1>No encontramos ese pedido</h1>
-    <p>Si acabas de hacer un pedido, escríbenos a soporte y lo revisamos de inmediato.</p>
-    <div class="thanks__btns"><a class="btn btn--grad" href="/">Ir a la tienda</a>
-      <a class="btn btn--line" href="<?= e(wa_link('Hola, acabo de hacer un pedido y no veo la confirmación')) ?>" rel="noopener" target="_blank">Soporte <?= e(wa_display()) ?></a></div>
+    <p>Si acabas de hacer un pedido, escríbenos a soporte (el número está al final de la página) y lo revisamos de inmediato.</p>
+    <div class="thanks__btns"><a class="btn btn--grad" href="/">Ir a la tienda</a></div>
   </div>
 </section>
 <?php else: ?>
@@ -94,7 +93,6 @@ $ico = fn($d) => '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="t
 
   <div class="thanks__btns">
     <a class="btn btn--grad" href="/">Seguir comprando</a>
-    <a class="btn btn--line" href="<?= e(wa_link("Hola, tengo una pregunta sobre mi pedido {$order['external_id']}")) ?>" rel="noopener" target="_blank">¿Dudas? Soporte <span class="thanks__num"><?= e(wa_display()) ?></span></a>
   </div>
   <p class="thanks__fine">Guarda tu número de pedido. Si cambias de opinión, escríbenos antes del despacho.</p>
 </section>

@@ -54,8 +54,6 @@ $announcement = setting('announcement');
     <div class="ticker" aria-label="<?= e(implode(' · ', $phrases)) ?>">
       <div class="ticker__track"><div class="ticker__g"><?= $group ?></div><div class="ticker__g" aria-hidden="true"><?= $group ?></div></div>
     </div>
-    <?php if (empty($focus)): ?>
-    <a href="<?= e(wa_link('Hola, necesito ayuda con')) ?>" rel="noopener" target="_blank">Soporte WhatsApp <?= e(wa_display()) ?></a><?php endif; ?>
   </div>
 </div>
 <?php if (!empty($focus)): ?>
@@ -87,10 +85,6 @@ $announcement = setting('announcement');
       <input id="q" name="q" type="search" placeholder="Buscar productos…" value="<?= e((string) ($_GET['q'] ?? '')) ?>" autocomplete="off">
       <button aria-label="Buscar"><svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Zm5.3-2.2L21 21"/></svg></button>
     </form>
-    <a class="top__wa" href="<?= e(wa_link('Hola, necesito ayuda con')) ?>" rel="noopener" target="_blank" aria-label="Soporte por WhatsApp">
-      <svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path fill="currentColor" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2Zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2Zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.2-.4.7-1.4a.4.4 0 0 0 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a1 1 0 0 0-.7.3 3 3 0 0 0-.9 2.2 5.2 5.2 0 0 0 1.1 2.7 11.8 11.8 0 0 0 4.5 4c1.7.7 2.3.8 3.2.6a2.7 2.7 0 0 0 1.8-1.2 2.2 2.2 0 0 0 .1-1.2c0-.1-.2-.2-.5-.3Z"/></svg>
-      <span class="top__wa-txt"><strong>Soporte</strong><small><?= e(wa_display()) ?></small></span>
-    </a>
   </div>
   <nav class="nav" aria-label="Principal">
     <div class="wrap nav__in">
