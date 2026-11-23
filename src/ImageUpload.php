@@ -24,6 +24,47 @@ final class ImageUpload
         if ($file['size'] > self::MAX_BYTES) {
             throw new RuntimeException('La imagen pesa más de 8 MB.');
         }
+        return self::storeFile($file['tmp_name'], $productId, $folder, $byWidth);
+    }
+
+    /**
+     * Descarga una foto de otra web (p. ej. el CDN de Shopify) y la guarda como las subidas a mano.
+     * Así la tienda no depende de que la otra web siga existiendo.
+     * @return string URL pública de la imagen guardada
+     */
+    public static function fromUrl(string $url, int $productId, string $folder = 'products', bool $byWidth = false): string
+    {
+        if (!preg_match('#^https://#', $url) || !function_exists('curl_init')) {
+            throw new RuntimeException('Solo se pueden descargar imágenes https.');
+        }
+        $tmp = tempnam(sys_get_temp_dir(), 'img');
+        $fh = fopen($tmp, 'wb');
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_FILE => $fh, CURLOPT_FOLLOWLOCATION => true, CURLOPT_MAXREDIRS => 3,
+            CURLOPT_TIMEOUT => 25, CURLOPT_CONNECTTIMEOUT => 8,
+            CURLOPT_PROTOCOLS => CURLPROTO_HTTPS, CURLOPT_REDIR_PROTOCOLS => CURLPROTO_HTTPS,
+            CURLOPT_USERAGENT => 'TendencityImporter/1.0',
+            CURLOPT_NOPROGRESS => false,
+            CURLOPT_PROGRESSFUNCTION => fn($c, $dlTotal, $dl) => $dl > self::MAX_BYTES ? 1 : 0, // corta archivos gigantes
+        ]);
+        $ok = curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        fclose($fh);
+        try {
+            if (!$ok || $code !== 200) {
+                throw new RuntimeException("No se pudo descargar la imagen (HTTP {$code}).");
+            }
+            return self::storeFile($tmp, $productId, $folder, $byWidth);
+        } finally {
+            @unlink($tmp);
+        }
+    }
+
+    private static function storeFile(string $path, int $productId, string $folder, bool $byWidth): string
+    {
+        $file = ['tmp_name' => $path];
         $info = @getimagesize($file['tmp_name']);
         $src = match ($info['mime'] ?? '') {
             'image/jpeg' => @imagecreatefromjpeg($file['tmp_name']),

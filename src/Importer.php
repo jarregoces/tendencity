@@ -24,8 +24,8 @@ final class Importer
         'costo'               => 'Lo que te cuesta el producto, en pesos (para calcular tu margen)',
         'stock'               => 'Unidades disponibles (solo productos sin vincular; los vinculados toman el stock de Mastershop)',
         'peso'                => 'Peso con empaque en kg (ej. 0.5)',
-        'imagenes'            => 'URLs de las fotos separadas por | (https://…). La primera es la portada. También puedes subirlas en el editor',
-        'variantes'           => 'Opciones separadas por | (ej. Negro | Blanco). Con foto por opción: Oro = /uploads/oro.webp | Oro rosa = /uploads/rosa.webp',
+        'imagenes'            => 'URLs de las fotos separadas por | (https://…). La primera es la portada. Las de otras webs (ej. Shopify) se descargan a tu hosting al importar',
+        'variantes'           => 'Opciones separadas por | (ej. Negro | Blanco). Con foto: Oro = /uploads/oro.webp. Con SKU propio (ID de Dropi): Talla S # 1750-1712',
         'medidas'             => 'Medidas, separadas por |. Alto/ancho/fondo se dibujan con flechas sobre la foto (Alto: 75 cm | Ancho: 40 cm | Fondo: 30 cm); piezas se ven como barras (Cuchillo: 22 cm | Cuchara: 20 cm)',
         'caracteristicas_foto'=> 'Características con foto, separadas por ||. Cada una: Título | texto | ruta de la foto',
         'formas_uso'          => 'Formas de uso, separadas por ||. Cada una: Título | texto | ruta de la foto',
@@ -73,6 +73,7 @@ final class Importer
 
     public function import(string $file, string $originalName): array
     {
+        @set_time_limit(600); // descargar fotos de otra web puede tardar
         try {
             $rows = str_ends_with(strtolower($originalName), '.xlsx') ? $this->readXlsx($file) : $this->readCsv($file);
         } catch (RuntimeException $e) {
@@ -216,6 +217,8 @@ final class Importer
                     if (preg_match('#^(https://|/uploads/|/assets/)\S+$#', $src)) { $list[] = ['src' => $src, 'alt' => mb_substr($alt, 0, 160)]; }
                 }
             }
+            foreach ($list as &$bi) { $bi['src'] = $this->localizeImage($bi['src'], (int) $p['id'], $line, 'body'); }
+            unset($bi);
             $set['body_images'] = $list ? json_encode($list, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) : null;
         }
         if (($r['imagenes'] ?? '') !== '') {
@@ -230,7 +233,8 @@ final class Importer
                     }
                 }
             }
-            $set['custom_images'] = $imgs ? json_encode(array_slice($imgs, 0, 12), JSON_UNESCAPED_SLASHES) : null;
+            $imgs = array_map(fn($u) => $this->localizeImage($u, (int) $p['id'], $line), array_slice($imgs, 0, 12));
+            $set['custom_images'] = $imgs ? json_encode($imgs, JSON_UNESCAPED_SLASHES) : null;
         }
         $isLinked = !empty($p['ms_product_id']);
         if (($r['stock'] ?? '') !== '' && !$isLinked) {
@@ -390,6 +394,24 @@ final class Importer
      * queda EXACTAMENTE así: los que no estén se eliminan, la foto se pone o se quita, y «ninguna» deja
      * el producto sin variantes. Si la columna viene vacía, las variantes no se tocan.
      */
+    /** Foto de otra web → se descarga a /uploads del producto. Si falla, se deja la URL y se avisa. */
+    private function localizeImage(string $url, int $productId, int $line, string $folder = 'products'): string
+    {
+        if (!str_starts_with($url, 'https://')) {
+            return $url;                                           // ya es local (/uploads/… o /assets/…)
+        }
+        $own = parse_url((string) env('SITE_URL', ''), PHP_URL_HOST);
+        if ($own && parse_url($url, PHP_URL_HOST) === $own) {
+            return (string) parse_url($url, PHP_URL_PATH);
+        }
+        try {
+            return ImageUpload::fromUrl($url, $productId, 'products', $folder === 'body'); // las de la descripción se escalan por ancho
+        } catch (Throwable $e) {
+            $this->report['warnings'][] = "Fila {$line}: no se pudo descargar «" . mb_substr($url, 0, 70) . "» (" . $e->getMessage() . '). Se dejó el enlace externo.';
+            return $url;
+        }
+    }
+
     private function syncLocalVariants(int $productId, array $r, ?string $sku, ?int $stock): void
     {
         $st = $this->db->prepare('SELECT id, name FROM product_variants WHERE product_id = ? AND ms_variant_id IS NULL ORDER BY id');
@@ -405,9 +427,12 @@ final class Importer
             $list = [];
             if (!in_array(mb_strtolower($raw), ['ninguna', 'no', 'borrar'], true)) {
                 foreach (array_filter(array_map('trim', explode('|', $raw))) as $opt) {
+                    // "Nombre # SKU" fija el SKU de la variante (ej. el ID de Dropi "1750-1712")
+                    [$opt, $vs] = array_pad(array_map('trim', explode('#', $opt, 2)), 2, '');
                     [$n, $img] = array_pad(array_map('trim', explode('=', $opt, 2)), 2, '');
                     if ($n === '' || isset($list[mb_strtolower($n)])) continue;
-                    $list[mb_strtolower($n)] = [mb_substr($n, 0, 60), preg_match('#^(https://|/uploads/|/assets/)\S+$#', $img) ? $img : null];
+                    $list[mb_strtolower($n)] = [mb_substr($n, 0, 60), preg_match('#^(https://|/uploads/|/assets/)\S+$#', $img) ? $img : null,
+                                               preg_match('/^[A-Za-z0-9._-]{1,120}$/', $vs) ? $vs : null];
                 }
             }
             $byName = [];
@@ -417,13 +442,13 @@ final class Importer
                 if (isset($byName[''])) { $keep[] = $byName['']; }
                 else { $ins->execute([$productId, $sku, null, $baseStock, null]); $keep[] = (int) $this->db->lastInsertId(); }
             } else {
-                $up = $this->db->prepare('UPDATE product_variants SET name = ?, image = ? WHERE id = ?');
-                foreach ($list as $key => [$name, $img]) {
+                $up = $this->db->prepare('UPDATE product_variants SET name = ?, image = ?, sku = COALESCE(?, sku) WHERE id = ?');
+                foreach ($list as $key => [$name, $img, $ownSku]) {
                     if (isset($byName[$key])) {
-                        $up->execute([$name, $img, $byName[$key]]);
+                        $up->execute([$name, $img, $ownSku, $byName[$key]]);
                         $keep[] = $byName[$key];
                     } else {
-                        $vsku = $sku ? $sku . '-' . strtoupper(substr(slugify($name), 0, 12)) : null;
+                        $vsku = $ownSku ?? ($sku ? $sku . '-' . strtoupper(substr(slugify($name), 0, 12)) : null);
                         $ins->execute([$productId, $vsku, $name, $baseStock, $img]);
                         $keep[] = (int) $this->db->lastInsertId();
                     }
