@@ -41,6 +41,7 @@ jobs:
             .user.ini
             .well-known/**
             cgi-bin/**
+            gt2/**
             **/error_log
             public/uploads/**
             logs/**
