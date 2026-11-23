@@ -12,6 +12,7 @@ declare(strict_types=1);
  *   POST /api/pedidos/{ref}/despachado  {"dropi_order_id":"123","carrier":"…","tracking":"…"}
  *   POST /api/pedidos/{ref}/envio       {"status":"EN TRANSITO","carrier":"…","tracking":"…","tracking_url":"…"}
  *   POST /api/pedidos/{ref}/error       {"error":"Sin cobertura en el municipio"}
+ *   POST /api/productos/importar        archivo .xlsx/.csv (campo "archivo") con el formato de la carga masiva
  *
  * Convención de productos: el SKU del producto en el panel es el ID del producto en Dropi.
  * Si el producto tiene variantes, el SKU de cada variante es "IDPRODUCTO-IDVARIACION" de Dropi.
@@ -117,6 +118,20 @@ $find = function (string $ref) use ($db): ?array {
 
 if (($seg[1] ?? '') === 'ping') {
     $out(['ok' => true, 'store' => site_url('/'), 'country' => Country::code(), 'fulfillment' => fulfillment(), 'time' => date('c')]);
+}
+
+// POST /api/productos/importar — misma carga masiva del panel, para subir catálogos desde Claude
+if (($seg[1] ?? '') === 'productos' && ($seg[2] ?? '') === 'importar' && $method === 'POST') {
+    $f = $_FILES['archivo'] ?? null;
+    if (!$f || ($f['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        $out(['ok' => false, 'error' => 'Envía el archivo en el campo "archivo" (multipart/form-data)'], 422);
+    }
+    $name = (string) ($f['name'] ?? 'productos.xlsx');
+    if (!preg_match('/\.(xlsx|csv)$/i', $name)) {
+        $out(['ok' => false, 'error' => 'Solo .xlsx o .csv'], 422);
+    }
+    $rep = (new Importer($db))->import($f['tmp_name'], $name);
+    $out(['ok' => !$rep['errors'], 'imported' => $rep['ok'], 'errors' => $rep['errors'], 'warnings' => $rep['warnings']]);
 }
 
 if (($seg[1] ?? '') !== 'pedidos') {
