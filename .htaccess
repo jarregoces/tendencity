@@ -5,3 +5,7 @@ RewriteRule ^(src|cli|sql|templates)(/|$) - [F,L]
 RewriteRule ^\.env - [F,L]
 RewriteCond %{REQUEST_URI} !^/public/
 RewriteRule ^(.*)$ public/$1 [L]
+
+# php -- BEGIN cPanel-generated handler, do not edit
+# This domain inherits the “PHP” package.
+# php -- END cPanel-generated handler, do not edit

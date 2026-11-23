@@ -3,7 +3,7 @@
 $meta = ($meta ?? []) + [
     'title'       => 'Tendencity | Tendencias con pago contraentrega en ' . Country::name() . '',
     'description' => 'Productos en tendencia para tu hogar, tecnología y cuidado personal. Envío incluido a toda ' . Country::name() . ' y pagas al recibir.',
-    'canonical'   => site_url(parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH)),
+    'canonical'   => site_url((string) (parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/')),
     'robots'      => 'index, follow',
     'image'       => site_url('/assets/img/logo.png'),
     'type'        => 'website',

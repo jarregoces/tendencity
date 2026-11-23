@@ -13,6 +13,8 @@ declare(strict_types=1);
  *   POST /api/pedidos/{ref}/envio       {"status":"EN TRANSITO","carrier":"…","tracking":"…","tracking_url":"…"}
  *   POST /api/pedidos/{ref}/error       {"error":"Sin cobertura en el municipio"}
  *   POST /api/productos/importar        archivo .xlsx/.csv (campo "archivo") con el formato de la carga masiva
+ *   GET  /api/productos[?q=texto]       productos (id, nombre, SKU, precio, stock, publicado, URL)
+ *   GET  /api/categorias                rutas de categoría válidas para la carga masiva
  *   GET  /api/ajustes                   ajustes editables
  *   POST /api/testimonios  {"sku":"4664+28315","items":[{"name":"Ana P.","city":"","rating":5,"text":"…"}]}
  *   POST /api/ajustes   {"whatsapp":"573182165374","pia_global":"0"}  cambia ajustes (solo los permitidos)
@@ -198,6 +200,30 @@ if (($seg[1] ?? '') === 'testimonios' && $method === 'POST') {
         $added++;
     }
     $out(['ok' => true, 'product_id' => $pid, 'added' => $added, 'skipped' => $skipped]);
+}
+
+// GET /api/productos: lo que ya hay en la tienda (para no duplicar al cargar productos nuevos)
+if (($seg[1] ?? '') === 'productos' && $method === 'GET' && count($seg) === 2) {
+    $q = trim((string) ($_GET['q'] ?? ''));
+    $sql = 'SELECT p.id, p.name, p.slug, p.sku, p.ms_product_id, p.price, p.cost, p.stock, p.is_active, c.slug AS category
+            FROM products p LEFT JOIN categories c ON c.id = p.category_id';
+    $args = [];
+    if ($q !== '') { $sql .= ' WHERE p.name LIKE ? OR p.sku = ?'; $args = ['%' . $q . '%', $q]; }
+    $st = $db->prepare($sql . ' ORDER BY p.id DESC LIMIT 500');
+    $st->execute($args);
+    $rows = array_map(fn(array $r) => $r + ['url' => site_url('/p/' . $r['slug'] . '/')], $st->fetchAll());
+    $out(['ok' => true, 'count' => count($rows), 'products' => $rows]);
+}
+
+// GET /api/categorias: rutas "padre/hija" que acepta la columna categoria de la carga masiva
+if (($seg[1] ?? '') === 'categorias' && $method === 'GET') {
+    $all = $db->query('SELECT id, parent_id, slug, name FROM categories ORDER BY parent_id IS NOT NULL, name')->fetchAll();
+    $byId = array_column($all, null, 'id');
+    $rows = array_map(fn(array $c) => [
+        'ruta'   => ($c['parent_id'] && isset($byId[$c['parent_id']]) ? $byId[$c['parent_id']]['slug'] . '/' : '') . $c['slug'],
+        'nombre' => $c['name'],
+    ], $all);
+    $out(['ok' => true, 'categories' => $rows]);
 }
 
 if (($seg[1] ?? '') !== 'pedidos') {

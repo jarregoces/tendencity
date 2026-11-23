@@ -1,0 +1,47 @@
+name: Desplegar tienda Colombia
+
+# Se ejecuta al actualizar main, o a mano desde la pestaña Actions ("Run workflow").
+on:
+  push:
+    # La rama claude/… está solo mientras no exista main. Quítala después.
+    branches: [main, claude/admiring-hamilton-0p5b3m]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-co
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: colombia
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Revisar sintaxis PHP
+        run: find src public cli templates -name '*.php' -print0 | xargs -0 -n1 php -l > /dev/null
+
+      # tendencity.store tiene todo el proyecto dentro de public_html/ (el .htaccess de la raíz
+      # bloquea src/, cli/, sql/, templates/ y .env). Cambia la carpeta con la variable SERVER_DIR.
+      # Nunca toca: .env (claves), public/uploads/ (fotos), logs, ni archivos propios de cPanel.
+      - name: Subir por FTP a cPanel
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftps
+          server-dir: ${{ vars.SERVER_DIR || 'public_html/' }}
+          exclude: |
+            **/.git*
+            **/.git*/**
+            .github/**
+            .env
+            .env.*
+            .user.ini
+            .well-known/**
+            cgi-bin/**
+            **/error_log
+            public/uploads/**
+            logs/**
+            README.md
