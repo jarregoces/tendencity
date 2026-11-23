@@ -1,7 +1,9 @@
 name: Revisar carpetas FTP Colombia
 
-# Solo lista carpetas (no sube ni borra nada). Se lanza a mano desde Actions.
+# Solo lista carpetas (no sube ni borra nada). Corre al cambiar este archivo, o a mano desde Actions.
 on:
+  push:
+    paths: ['.github/workflows/ftp-check.yml']
   workflow_dispatch:
 
 jobs:
