@@ -13,7 +13,8 @@ jobs:
     steps:
       - name: Listar carpetas del FTP
         env:
-          S: ${{ secrets.FTP_SERVER }}
+          # Nombre del servidor que trae el certificado (misma IP que tendencity.store)
+          S: ${{ vars.FTP_HOST || 'server4.websiteserverbox.com' }}
           U: ${{ secrets.FTP_USERNAME }}
           P: ${{ secrets.FTP_PASSWORD }}
         run: |
