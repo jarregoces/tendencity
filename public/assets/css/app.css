@@ -812,3 +812,7 @@ html, body { overflow-x: clip; }                       /* red de seguridad: nada
 .pager a:hover { border-color: var(--violet); }
 .pager .is-on { background: var(--ink); color: #fff; border-color: var(--ink); }
 .pager .pager__gap { border: 0; background: none; min-width: 0; padding: 0 .1rem; }
+
+/* Imágenes intercaladas en el texto de venta */
+.body-img--in { margin: 1.5rem 0; }
+.body-img--in img { width: 100%; height: auto; border-radius: 16px; display: block; }

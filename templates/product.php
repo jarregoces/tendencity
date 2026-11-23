@@ -75,10 +75,19 @@ require __DIR__ . '/partials/product_data.php';
   <?php
   // Imágenes de la descripción: una después de cada sección, en el orden en que se subieron
   $imgQueue = $bodyImages;
-  $nextImg = function (int $n = 1) use (&$imgQueue, $title) {
+  $nextImg = function (int $n = 1, bool $inText = false) use (&$imgQueue, $title) {
       for ($i = 0; $i < $n && $imgQueue; $i++) {
           $im = array_shift($imgQueue);
-          echo '<figure class="body-img wrap-narrow"><img src="' . e($im['src']) . '" alt="' . e($im['alt'] ?: $title) . '" width="1080" loading="lazy"></figure>';
+          echo '<figure class="body-img' . ($inText ? ' body-img--in' : ' wrap-narrow') . '"><img src="' . e($im['src']) . '" alt="' . e($im['alt'] ?: $title) . '" width="1080" loading="lazy"></figure>';
+      }
+  };
+  // Texto de venta con imágenes intercaladas: una antes de cada subtítulo, hasta 3 (como una landing)
+  $desireWithImages = function (string $text) use ($nextImg): void {
+      // Corta antes de cada subtítulo: "## …", "### …" o una línea entera en negrita "**…**"
+      $chunks = preg_split('/\R(?=#{2,3}\s|\*\*[^*\n]+\*\*\h*(?:\R|$))/', trim($text));
+      foreach ($chunks as $k => $chunk) {
+          if ($k > 0 && $k <= 3) { $nextImg(1, true); }
+          echo '<div class="prose">' . md($chunk) . '</div>';
       }
   };
   ?>
@@ -109,7 +118,7 @@ require __DIR__ . '/partials/product_data.php';
 
   <?php if ($p['aida_desire'] || $forWhom || $specs): ?>
   <section class="aida__d wrap-narrow">
-    <?php if ($p['aida_desire']): ?><div class="prose"><?= md($p['aida_desire']) ?></div><?php endif; ?>
+    <?php if ($p['aida_desire']) { $desireWithImages((string) $p['aida_desire']); } ?>
     <?php if ($forWhom): ?>
       <h2>Es para ti si…</h2>
       <ul class="forwhom"><?php foreach ($forWhom as $w): ?><li><?= md_inline($w) ?></li><?php endforeach; ?></ul>
