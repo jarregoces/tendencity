@@ -201,11 +201,30 @@ function product_title(array $p): string
     return $p['title'] ?: $p['name'];
 }
 
-/** Tus fotos (custom_images) mandan sobre las de Mastershop. */
-function product_images(array $p): array
+/** Mini video (mp4/webm) que se muestra como GIF: sin sonido, en bucle y solo. */
+function is_video_url(?string $u): bool
+{
+    return (bool) preg_match('/\.(mp4|webm)(\?.*)?$/i', (string) $u);
+}
+
+/** Galería completa: fotos y mini videos. Tus fotos (custom_images) mandan sobre las de Mastershop. */
+function product_media(array $p): array
 {
     $own = json_decode($p['custom_images'] ?? '[]', true) ?: [];
     return $own ?: (json_decode($p['images'] ?? '[]', true) ?: []);
+}
+
+/** Solo fotos (tarjetas, Google, Meta, formulario): los videos se quedan en la galería de la ficha. */
+function product_images(array $p): array
+{
+    return array_values(array_filter(product_media($p), fn($u) => !is_video_url($u)));
+}
+
+/** <video> que se comporta como GIF (el navegador no lo deja sonar ni pide tocar para verlo). */
+function video_tag(string $src, string $label = '', string $extra = ''): string
+{
+    return '<video src="' . e($src) . '" autoplay muted loop playsinline preload="metadata"'
+         . ($label !== '' ? ' aria-label="' . e($label) . '"' : '') . ($extra !== '' ? ' ' . $extra : '') . '></video>';
 }
 
 function product_image(array $p, int $i = 0): ?string

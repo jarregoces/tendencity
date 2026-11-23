@@ -5,18 +5,22 @@ require __DIR__ . '/partials/product_data.php';
 <div class="wrap pdp">
   <div class="pdp__gallery">
     <div class="gallery" id="gallery">
-      <?php foreach ($images ?: [null] as $i => $img): ?>
+      <?php foreach ($gallery ?: [null] as $i => $img): ?>
         <figure class="gallery__slide">
-          <?php if ($img): ?>
+          <?php if ($img && is_video_url($img)): ?>
+          <?= video_tag($img, $title . ' – video') ?>
+          <?php elseif ($img): ?>
           <img src="<?= e($img) ?>" alt="<?= e($title) ?><?= $i ? ' – foto ' . ($i + 1) : '' ?>" width="800" height="800" <?= $i ? 'loading="lazy"' : 'fetchpriority="high"' ?>>
           <?php endif; ?>
         </figure>
       <?php endforeach; ?>
     </div>
-    <?php if (count($images) > 1): ?>
+    <?php if (count($gallery) > 1): ?>
     <div class="thumbs" role="tablist" aria-label="Fotos del producto">
-      <?php foreach ($images as $i => $img): ?>
-        <button type="button" data-slide="<?= $i ?>" aria-label="Ver foto <?= $i + 1 ?>"><img src="<?= e($img) ?>" alt="" width="72" height="72" loading="lazy"></button>
+      <?php foreach ($gallery as $i => $img): ?>
+        <button type="button" data-slide="<?= $i ?>" aria-label="Ver <?= is_video_url($img) ? 'video' : 'foto' ?> <?= $i + 1 ?>"><?= is_video_url($img)
+          ? '<video src="' . e($img) . '#t=0.5" muted playsinline preload="metadata"></video><span class="thumbs__play" aria-hidden="true">▶</span>'
+          : '<img src="' . e($img) . '" alt="" width="72" height="72" loading="lazy">' ?></button>
       <?php endforeach; ?>
     </div>
     <?php endif; ?>
@@ -42,7 +46,7 @@ require __DIR__ . '/partials/product_data.php';
     <div class="colors" role="radiogroup" aria-label="Color">
       <p class="colors__label">Color: <strong data-color-name><?= e($colorVariants[0]['name']) ?></strong></p>
       <div class="colors__list">
-        <?php foreach ($colorVariants as $i => $v): $hex = $swatch($v['name']); $slide = $v['image'] ? array_search($v['image'], $images, true) : false; ?>
+        <?php foreach ($colorVariants as $i => $v): $hex = $swatch($v['name']); $slide = $v['image'] ? array_search($v['image'], $gallery, true) : false; ?>
           <button type="button" role="radio" aria-checked="<?= $i ? 'false' : 'true' ?>" class="colors__b<?= $i ? '' : ' is-on' ?><?= (int) $v['stock'] > 0 ? '' : ' is-out' ?>"
             data-variant="<?= (int) $v['id'] ?>" data-name="<?= e($v['name']) ?>" <?= $slide !== false ? 'data-slide="' . (int) $slide . '"' : '' ?>>
             <?php if ($hex): ?><span class="colors__sw" style="background:<?= e($hex) ?>"></span><?php endif; ?><?= e($v['name']) ?><?= (int) $v['stock'] > 0 ? '' : ' · agotado' ?></button>
@@ -78,7 +82,10 @@ require __DIR__ . '/partials/product_data.php';
   $nextImg = function (int $n = 1, bool $inText = false) use (&$imgQueue, $title) {
       for ($i = 0; $i < $n && $imgQueue; $i++) {
           $im = array_shift($imgQueue);
-          echo '<figure class="body-img' . ($inText ? ' body-img--in' : ' wrap-narrow') . '"><img src="' . e($im['src']) . '" alt="' . e($im['alt'] ?: $title) . '" width="1080" loading="lazy"></figure>';
+          echo '<figure class="body-img' . ($inText ? ' body-img--in' : ' wrap-narrow') . '">'
+             . (is_video_url($im['src']) ? video_tag($im['src'], $im['alt'] ?: $title)
+                                         : '<img src="' . e($im['src']) . '" alt="' . e($im['alt'] ?: $title) . '" width="1080" loading="lazy">')
+             . '</figure>';
       }
   };
   // Texto de venta con imágenes intercaladas: una antes de cada subtítulo, hasta 3 (como una landing)

@@ -3,11 +3,13 @@
 /** @var array $p  @var Catalog $catalog */
 $title    = product_title($p);
 $images   = product_images($p);
+$gallery  = product_media($p); // galería de la ficha: fotos + mini videos
 $cat      = $p['category_id'] ? $catalog->category((int) $p['category_id']) : null;
 $variants = $catalog->variants((int) $p['id']);
 // Las fotos de cada color entran a la galería (si no están ya)
 foreach ($variants as $v) {
     if (!empty($v['image']) && !in_array($v['image'], $images, true)) { $images[] = $v['image']; }
+    if (!empty($v['image']) && !in_array($v['image'], $gallery, true)) { $gallery[] = $v['image']; }
 }
 $colorVariants = array_values(array_filter($variants, fn($v) => $v['name'] !== null && $v['name'] !== ''));
 $swatch = function (string $name): ?string {

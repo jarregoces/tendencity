@@ -142,10 +142,13 @@ p { margin: 0 0 1em; }
   border-radius: var(--r-m); background: var(--soft); scrollbar-width: none; }
 .gallery::-webkit-scrollbar { display: none; }
 .gallery__slide { margin: 0; scroll-snap-align: start; aspect-ratio: 1; }
-.gallery__slide img { width: 100%; height: 100%; object-fit: cover; }
+.gallery__slide img, .gallery__slide video { width: 100%; height: 100%; object-fit: cover; display: block; }
 .thumbs { display: flex; gap: .5rem; margin-top: .6rem; overflow-x: auto; }
 .thumbs button { padding: 0; border: 2px solid transparent; border-radius: var(--r-s); overflow: hidden; cursor: pointer; flex: 0 0 64px; background: none; }
 .thumbs button.is-on { border-color: var(--violet); }
+.thumbs button { position: relative; }
+.thumbs video { width: 64px; height: 64px; object-fit: cover; display: block; }
+.thumbs__play { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: .9rem; text-shadow: 0 1px 4px rgba(0,0,0,.7); pointer-events: none; }
 .pdp__title { margin-bottom: .35rem; }
 .pdp__hook { font-size: 1.1rem; color: var(--text); }
 .price { display: flex; align-items: center; gap: .75rem; margin: .5rem 0 1rem; }
@@ -784,7 +787,7 @@ html, body { overflow-x: clip; }                       /* red de seguridad: nada
 /* v16: imágenes de la descripción */
 .body-imgs { display: grid; gap: .8rem; margin-block: 1.5rem; }
 .body-imgs figure { margin: 0; }
-.body-imgs img { width: 100%; height: auto; display: block; border-radius: 16px; }
+.body-imgs img, .body-imgs video { width: 100%; height: auto; display: block; border-radius: 16px; }
 
 /* ===== Marquesina de la barra superior ===== */
 .ticker { flex: 1; min-width: 0; overflow: hidden; -webkit-mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent); mask-image: linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent); }
@@ -804,7 +807,7 @@ html, body { overflow-x: clip; }                       /* red de seguridad: nada
 .foot--focus a, .foot--focus p { color: #bdb7cc; font-size: .82rem; }
 .foot--focus p { margin: 0; }
 .body-img { margin-block: 1.5rem; }
-.body-img img { width: 100%; height: auto; display: block; border-radius: 16px; }
+.body-img img, .body-img video { width: 100%; height: auto; display: block; border-radius: 16px; }
 
 /* Paginación */
 .pager { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: .4rem; margin: 1.5rem auto 2rem; }
