@@ -13,6 +13,11 @@ declare(strict_types=1);
  *   POST /api/pedidos/{ref}/envio       {"status":"EN TRANSITO","carrier":"…","tracking":"…","tracking_url":"…"}
  *   POST /api/pedidos/{ref}/error       {"error":"Sin cobertura en el municipio"}
  *   POST /api/productos/importar        archivo .xlsx/.csv (campo "archivo") con el formato de la carga masiva
+ *   GET  /api/ajustes                   ajustes editables
+ *   POST /api/ajustes   {"whatsapp":"573182165374","pia_global":"0"}  cambia ajustes (solo los permitidos)
+ *
+ * Productos compuestos: un SKU "4664+28315" son dos productos de Dropi que se envían juntos
+ * (items[].dropi_components). El precio se reparte entre ellos en partes iguales.
  *
  * Convención de productos: el SKU del producto en el panel es el ID del producto en Dropi.
  * Si el producto tiene variantes, el SKU de cada variante es "IDPRODUCTO-IDVARIACION" de Dropi.
@@ -61,8 +66,21 @@ $present = function (array $o) use ($db): array {
         $vsku = (string) ($i['variant_sku'] ?? '');
         $psku = (string) ($i['product_sku'] ?? $i['sku'] ?? '');
         $dropiProduct = null; $dropiVariation = null;
+        $components = null;
         if (preg_match('/^(\d+)-(\d+)$/', $vsku, $m)) { $dropiProduct = (int) $m[1]; $dropiVariation = (int) $m[2]; }
         elseif (ctype_digit($psku)) { $dropiProduct = (int) $psku; }
+        elseif (preg_match('/^\d+(?:-\d+)?(?:\+\d+(?:-\d+)?)+$/', $psku)) {
+            // Varios productos de Dropi por cada unidad vendida: el precio se reparte (el resto va al primero)
+            $parts = explode('+', $psku);
+            $n = count($parts);
+            $unit = (int) $i['unit_price'];
+            $components = [];
+            foreach ($parts as $k => $part) {
+                [$pid, $var] = array_pad(explode('-', $part), 2, null);
+                $components[] = ['dropi_product_id' => (int) $pid, 'dropi_variation_id' => $var !== null ? (int) $var : null,
+                                 'unit_price' => intdiv($unit, $n) + ($k === 0 ? $unit % $n : 0)];
+            }
+        }
         return [
             'name'               => $i['name'],
             'quantity'           => (int) $i['quantity'],
@@ -70,6 +88,7 @@ $present = function (array $o) use ($db): array {
             'sku'                => $vsku ?: $psku,
             'dropi_product_id'   => $dropiProduct,
             'dropi_variation_id' => $dropiVariation,
+            'dropi_components'   => $components,
         ];
     }, $st->fetchAll());
 
@@ -132,6 +151,29 @@ if (($seg[1] ?? '') === 'productos' && ($seg[2] ?? '') === 'importar' && $method
     }
     $rep = (new Importer($db))->import($f['tmp_name'], $name);
     $out(['ok' => !$rep['errors'], 'imported' => $rep['ok'], 'errors' => $rep['errors'], 'warnings' => $rep['warnings']]);
+}
+
+// Ajustes de la tienda editables desde la API (lista cerrada: nada de claves ni datos sensibles)
+const API_SETTINGS = ['whatsapp', 'announcement', 'shipping_flat', 'shipping_free_from', 'pia_global', 'pia_global_discount',
+                      'pia_instructions', 'def_guarantee', 'def_qty_offers', 'def_urgency', 'def_faq', 'ship_prep_days',
+                      'ship_transit_days', 'ship_cutoff_hour', 'ship_saturday', 'ship_note'];
+if (($seg[1] ?? '') === 'ajustes') {
+    if ($method === 'POST') {
+        $st = $db->prepare('REPLACE INTO settings (k, v) VALUES (?, ?)');
+        $changed = [];
+        foreach ($body as $k => $v) {
+            if (in_array($k, API_SETTINGS, true) && is_scalar($v)) {
+                $st->execute([$k, mb_substr(trim((string) $v), 0, 5000)]);
+                $changed[] = $k;
+            }
+        }
+        $ignored = array_values(array_diff(array_keys($body), $changed));
+        $out(['ok' => (bool) $changed, 'changed' => $changed, 'ignored' => $ignored]);
+    }
+    $in = implode(',', array_fill(0, count(API_SETTINGS), '?'));
+    $st = $db->prepare("SELECT k, v FROM settings WHERE k IN ($in)");
+    $st->execute(API_SETTINGS);
+    $out(['ok' => true, 'settings' => $st->fetchAll(PDO::FETCH_KEY_PAIR)]);
 }
 
 if (($seg[1] ?? '') !== 'pedidos') {
