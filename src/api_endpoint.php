@@ -178,6 +178,30 @@ if (($seg[1] ?? '') === 'ajustes') {
     $out(['ok' => true, 'settings' => $st->fetchAll(PDO::FETCH_KEY_PAIR)]);
 }
 
+// GET /api/avisos → diagnóstico de notificaciones push | POST /api/avisos → enviar aviso de prueba
+if (($seg[1] ?? '') === 'avisos') {
+    $subs = [];
+    try {
+        $subs = $db->query('SELECT id, admin_email, user_agent, fails, last_ok, created_at, endpoint FROM push_subscriptions ORDER BY id')->fetchAll();
+    } catch (Throwable $e) {
+        $out(['ok' => false, 'error' => 'Tabla de avisos no creada todavía: ' . $e->getMessage()], 500);
+    }
+    $list = array_map(fn($s) => [
+        'id' => (int) $s['id'], 'usuario' => $s['admin_email'], 'servicio' => parse_url($s['endpoint'], PHP_URL_HOST),
+        'celular' => mb_substr((string) $s['user_agent'], 0, 140), 'fallos' => (int) $s['fails'],
+        'ultimo_ok' => $s['last_ok'], 'creado' => $s['created_at'],
+    ], $subs);
+    if ($method === 'POST') {
+        $res = WebPush::notifyAll($db);
+        $codes = [];
+        foreach ($subs as $s) { $codes[parse_url($s['endpoint'], PHP_URL_HOST) . '#' . $s['id']] = null; }
+        $out(['ok' => true, 'enviados' => $res, 'suscripciones' => $list]);
+    }
+    $vapid = null;
+    try { $vapid = strlen(WebPush::publicKey($db)) > 40; } catch (Throwable $e) { $vapid = 'ERROR: ' . $e->getMessage(); }
+    $out(['ok' => true, 'claves_vapid' => $vapid, 'curl' => function_exists('curl_init'), 'suscripciones' => $list]);
+}
+
 // POST /api/testimonios — testimonios reales de clientes para un producto (no duplica)
 if (($seg[1] ?? '') === 'testimonios' && $method === 'POST') {
     $st = $db->prepare('SELECT id FROM products WHERE sku = ? OR slug = ? LIMIT 1');
