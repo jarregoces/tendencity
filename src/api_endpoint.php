@@ -122,6 +122,7 @@ $present = function (array $o) use ($db): array {
         'notes'           => $o['notes'],
         'items'           => $items,
         'sync_status'     => $o['sync_status'],
+        'confirm_status'  => $o['confirm_status'] ?? 'confirmado',   // por_confirmar | confirmado | cancelado
         'dropi_order_id'  => $o['fulfillment_ref'] ?? null,
         'carrier'         => $o['carrier_name'],
         'carrier_status'  => $o['carrier_status'],
@@ -156,7 +157,7 @@ if (($seg[1] ?? '') === 'productos' && ($seg[2] ?? '') === 'importar' && $method
 
 // Ajustes de la tienda editables desde la API (lista cerrada: nada de claves ni datos sensibles)
 const API_SETTINGS = ['whatsapp', 'announcement', 'shipping_flat', 'shipping_free_from', 'pia_global', 'pia_global_discount',
-                      'pia_instructions', 'def_guarantee', 'def_qty_offers', 'def_urgency', 'def_faq', 'ship_prep_days',
+                      'pia_instructions', 'confirm_sender', 'def_guarantee', 'def_qty_offers', 'def_urgency', 'def_faq', 'ship_prep_days',
                       'ship_transit_days', 'ship_cutoff_hour', 'ship_saturday', 'ship_note'];
 if (($seg[1] ?? '') === 'ajustes') {
     if ($method === 'POST') {
@@ -243,6 +244,9 @@ switch ($seg[3]) {
         }
         if ($order['payment_method'] === 'pia' && $order['payment_status'] !== 'pagado') {
             $out(['ok' => false, 'error' => 'Pago anticipado sin confirmar: no se despacha'], 409);
+        }
+        if (($order['confirm_status'] ?? 'confirmado') !== 'confirmado') {
+            $out(['ok' => false, 'error' => 'El cliente todavía no confirmó el pedido (o se canceló): no se despacha'], 409);
         }
         $service->markDispatched((int) $order['id'], $ref, $str('carrier', 80), $str('tracking', 60));
         break;

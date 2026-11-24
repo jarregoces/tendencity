@@ -81,6 +81,7 @@ const SETTINGS = [
     'pia_global'          => ['Pago anticipado en TODOS los productos (1 = sí, 0 = solo en los que lo tengan activado)', 'text'],
     'pia_global_discount' => ['% de descuento por pago anticipado para todos (los productos con su propio % lo conservan)', 'text'],
     'pia_instructions'    => ['Instrucciones de pago anticipado', 'textarea'],
+    'confirm_sender'      => ['Nombre que firma los WhatsApp de confirmación de pedidos (ej. José)', 'text'],
     'black_friday_active' => ['Black Friday activo (1 = sí)', 'text'],
     'black_friday_text'   => ['Texto de la landing Black Friday', 'textarea'],
     'def_guarantee'       => ['Garantía por defecto (la usan los productos que no tienen una propia)', 'text'],
@@ -220,6 +221,23 @@ if ($isPost) {
             flash($ok ? 'Pago registrado y pedido enviado a Mastershop.' : 'Pago registrado, pero Mastershop falló. Revisa el error y reintenta.', $ok ? 'ok' : 'bad');
         }
         back('?p=pedidos');
+    }
+    if ($action === 'confirm_order') {
+        $ok = $orders->confirm((int) $_POST['id'], (string) $_SESSION['admin_name']);
+        flash($ok ? 'Pedido confirmado: pasó a «Por despachar».' : 'Ese pedido ya no estaba por confirmar.', $ok ? 'ok' : 'bad');
+        back('?p=pedidos&f=confirmar');
+    }
+    if ($action === 'cancel_order') {
+        $ok = $orders->cancel((int) $_POST['id'], (string) $_SESSION['admin_name']);
+        flash($ok ? 'Pedido cancelado. Las unidades volvieron al inventario.' : 'No se pudo cancelar: ya estaba cancelado o ya está en Dropi (cancélalo allá).', $ok ? 'ok' : 'bad');
+        back('?p=pedidos&f=' . urlencode((string) ($_POST['f'] ?? 'confirmar')));
+    }
+    if ($action === 'save_address') {
+        try {
+            $orders->updateAddress((int) $_POST['id'], $_POST);
+            flash('Dirección actualizada. Vuelve a enviar el WhatsApp si quieres que el cliente la revise.');
+        } catch (InvalidArgumentException $e) { flash($e->getMessage(), 'bad'); }
+        back('?p=pedidos&f=' . urlencode((string) ($_POST['f'] ?? 'confirmar')));
     }
     if ($action === 'mark_dispatched') {
         $ref = trim((string) ($_POST['ref'] ?? ''));
@@ -366,12 +384,15 @@ case 'paginas':
     page_paginas($db);
     break;
 case 'pedidos':
-    $f = $_GET['f'] ?? '';
+    $orders ??= new OrderService($db, mastershop_or_null());   // arma el mensaje de WhatsApp de cada pedido
+    $f = $_GET['f'] ?? (uses_mastershop() ? '' : 'confirmar');   // en Guatemala se abre en «Por confirmar»
     $where = match ($f) {
         'error'     => "WHERE sync_status = 'error' AND COALESCE(sync_error, '') NOT LIKE 'Despacho manual%'",
         'manual'    => "WHERE sync_status = 'error' AND sync_error LIKE 'Despacho manual%'",
         'por_pagar' => "WHERE payment_method = 'pia' AND payment_status = 'pendiente'",
-        'cola'      => "WHERE sync_status = 'pendiente_envio' AND (payment_method = 'cod' OR payment_status = 'pagado')",
+        'cola'      => "WHERE sync_status = 'pendiente_envio' AND confirm_status = 'confirmado' AND (payment_method = 'cod' OR payment_status = 'pagado')",
+        'confirmar' => "WHERE confirm_status = 'por_confirmar'",
+        'cancelados'=> "WHERE confirm_status = 'cancelado'",
         'novedad'   => 'WHERE novelty IS NOT NULL AND ms_status_id = 6',
         default     => '',
     };
@@ -382,7 +403,15 @@ case 'pedidos':
     <nav class="tabs">
       <?php $tabs = uses_mastershop()
           ? ['' => 'Todos', 'manual' => 'Despacho manual', 'error' => 'Con error', 'por_pagar' => 'Pago anticipado pendiente', 'novedad' => 'Con novedad']
-          : ['' => 'Todos', 'cola' => 'Por despachar (' . ucfirst(fulfillment()) . ')', 'error' => 'Con error', 'por_pagar' => 'Pago anticipado pendiente'];
+          : ['confirmar' => 'Por confirmar', 'cola' => 'Por despachar (' . ucfirst(fulfillment()) . ')', '' => 'Todos', 'error' => 'Con error',
+             'cancelados' => 'Cancelados', 'por_pagar' => 'Pago anticipado pendiente'];
+      $cnt = fn(string $w) => (int) $db->query("SELECT COUNT(*) FROM orders WHERE {$w}")->fetchColumn();
+      if (!uses_mastershop()) {
+          $n1 = $cnt("confirm_status = 'por_confirmar'");
+          $n2 = $cnt("sync_status = 'pendiente_envio' AND confirm_status = 'confirmado' AND (payment_method = 'cod' OR payment_status = 'pagado')");
+          if ($n1) { $tabs['confirmar'] .= " ({$n1})"; }
+          if ($n2) { $tabs['cola'] .= " ({$n2})"; }
+      }
       foreach ($tabs as $k => $l): ?>
         <a href="?p=pedidos&f=<?= e($k) ?>" class="<?= $f === $k ? 'on' : '' ?>"><?= e($l) ?></a>
       <?php endforeach; ?>
@@ -393,21 +422,36 @@ case 'pedidos':
       <?php foreach ($rows as $o): $c = json_decode($o['customer'], true); $a = json_decode($o['shipping_address'], true); ?>
         <tr>
           <td><strong><?= e($o['external_id']) ?></strong><br><small><?= e(date('d/m H:i', strtotime($o['created_at']))) ?></small></td>
-          <td><?= e($c['full_name'] ?? '') ?><br><small><?= e(($a['city'] ?? '') . ', ' . ($a['state'] ?? '')) ?></small><br>
+          <td><?= e($c['full_name'] ?? '') ?><br><small><?= e(trim(implode(', ', array_filter([$a['address1'] ?? '', $a['district'] ?? '', $a['address2'] ?? ''])))) ?></small><br><small><?= e(($a['city'] ?? '') . ', ' . ($a['state'] ?? '')) ?></small><br>
             <a href="<?= e(wa_customer((string) ($c['phone'] ?? ''))) ?>" target="_blank" rel="noopener"><?= e($c['phone'] ?? '') ?></a></td>
           <td><?= money($o['total']) ?></td>
           <td><?= e(Stats::CHANNELS[$o['channel'] ?? 'directo'] ?? (string) $o['channel']) ?><?php if ($o['source'] || $o['campaign']): ?><br><small><?= e(trim(($o['source'] ?? '') . ' · ' . ($o['campaign'] ?? ''), ' ·')) ?></small><?php endif; ?></td>
           <td><?= $o['payment_method'] === 'cod' ? 'Contraentrega' : 'Anticipado' ?><br><small><?= e($o['payment_status']) ?></small></td>
-          <td><?= e($o['sync_status']) ?><?= $o['ms_order_id'] ? '<br><small>#' . (int) $o['ms_order_id'] . '</small>' : '' ?><?= !empty($o['fulfillment_ref']) ? '<br><small>#' . e($o['fulfillment_ref']) . '</small>' : '' ?>
+          <td><?php if (!uses_mastershop()): $cs = $o['confirm_status'] ?? 'confirmado'; ?><span class="badge badge--<?= e($cs) ?>"><?= e(['por_confirmar' => 'Por confirmar', 'confirmado' => 'Confirmado', 'cancelado' => 'Cancelado'][$cs] ?? $cs) ?></span><br><?php endif; ?><?= e($o['sync_status']) ?><?= $o['ms_order_id'] ? '<br><small>#' . (int) $o['ms_order_id'] . '</small>' : '' ?><?= !empty($o['fulfillment_ref']) ? '<br><small>#' . e($o['fulfillment_ref']) . '</small>' : '' ?>
             <?php if ($o['sync_error']): ?><details><summary class="bad">Ver error</summary><small><?= e($o['sync_error']) ?></small></details><?php endif; ?></td>
           <td><?= e(WebhookProcessor::STATUS[(int) $o['ms_status_id']] ?? '—') ?>
             <?php if ($o['carrier_status']): ?><br><small><?= e($o['carrier_status']) ?></small><?php endif; ?>
             <?php if ($o['tracking_url']): ?><br><a href="<?= e($o['tracking_url']) ?>" target="_blank" rel="noopener"><?= e($o['carrier_name'] . ' ' . $o['tracking_code']) ?></a><?php endif; ?></td>
           <td class="actions">
-            <?php if ($o['payment_method'] === 'pia' && $o['payment_status'] === 'pendiente'): ?>
+            <?php if (!uses_mastershop() && ($o['confirm_status'] ?? '') === 'por_confirmar'):
+                $sender = (string) setting('confirm_sender', '');
+                if ($sender === '') { $nm = (string) $_SESSION['admin_name']; $sender = str_contains($nm, '@') ? 'el equipo' : explode(' ', $nm)[0]; }
+                $waText = $orders->confirmText((int) $o['id'], $sender); ?>
+              <a class="btn-wa" href="<?= e(wa_customer((string) ($c['phone'] ?? '')) . '?text=' . rawurlencode($waText)) ?>" target="_blank" rel="noopener">WhatsApp de confirmación</a>
+              <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="confirm_order"><input type="hidden" name="id" value="<?= (int) $o['id'] ?>"><button>✓ Confirmado</button></form>
+              <form method="post" onsubmit="return confirm('¿Cancelar el pedido <?= e($o['external_id']) ?>? No se enviará a Dropi.')"><?= csrf_field() ?><input type="hidden" name="action" value="cancel_order"><input type="hidden" name="f" value="<?= e($f) ?>"><input type="hidden" name="id" value="<?= (int) $o['id'] ?>"><button class="ghost">✕ Cancelar</button></form>
+              <details class="addr-edit"><summary>Corregir dirección</summary>
+                <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="save_address"><input type="hidden" name="f" value="<?= e($f) ?>"><input type="hidden" name="id" value="<?= (int) $o['id'] ?>">
+                  <label>Dirección <input name="address1" required value="<?= e((string) ($a['address1'] ?? '')) ?>"></label>
+                  <label><?= e(Country::get('district_label')) ?> <input name="district" value="<?= e((string) ($a['district'] ?? '')) ?>"></label>
+                  <label>Referencia <input name="address2" value="<?= e((string) ($a['address2'] ?? '')) ?>"></label>
+                  <label><?= e(Country::get('city_label')) ?> <input name="city" required value="<?= e((string) ($a['city'] ?? '')) ?>"></label>
+                  <label><?= e(Country::get('region_label')) ?> <select name="state"><?php foreach (Country::get('regions') as $r): ?><option<?= ($a['state'] ?? '') === $r ? ' selected' : '' ?>><?= e($r) ?></option><?php endforeach; ?></select></label>
+                  <button>Guardar dirección</button></form></details>
+            <?php elseif ($o['payment_method'] === 'pia' && $o['payment_status'] === 'pendiente'): ?>
               <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="mark_paid"><input type="hidden" name="id" value="<?= (int) $o['id'] ?>">
                 <input name="ref" placeholder="Ref. del pago" size="10"><button>Marcar pagado</button></form>
-            <?php elseif (!uses_mastershop() && $o['sync_status'] === 'pendiente_envio'): ?>
+            <?php elseif (!uses_mastershop() && $o['sync_status'] === 'pendiente_envio' && ($o['confirm_status'] ?? 'confirmado') === 'confirmado'): ?>
               <form method="post"><?= csrf_field() ?><input type="hidden" name="action" value="mark_dispatched"><input type="hidden" name="id" value="<?= (int) $o['id'] ?>">
                 <input name="ref" placeholder="N.º en Dropi" size="9" required><button>Ya está en Dropi</button></form>
             <?php elseif ($o['sync_status'] !== 'enviado'): ?>

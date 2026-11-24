@@ -148,3 +148,16 @@ form.star{display:inline}.star__b{background:none;color:#bbb;border:0;padding:0 
 .ed-adv[open]>summary{margin-bottom:1rem}
 .vars{border:1px solid var(--line);border-radius:10px;padding:.7rem .9rem;background:#fff}.vars__t{margin:0 0 .5rem;font-weight:600}.vars__tb{width:auto;border-collapse:collapse;margin-bottom:.5rem}.vars__tb td{padding:.25rem .4rem .25rem 0;vertical-align:middle}.vars__tb input{min-width:200px}.vars__pv{border-radius:6px;object-fit:cover;border:1px solid var(--line)}
 .pager{display:flex;flex-wrap:wrap;align-items:center;gap:.35rem;margin:1rem 0}.pager a,.pager b,.pager .off{min-width:2.2rem;text-align:center;padding:.4rem .7rem;border:1px solid var(--line);border-radius:8px;background:#fff;text-decoration:none;color:#000;font-size:.9rem}.pager b{background:#000;color:#fff;border-color:#000}.pager .off{opacity:.4}.pager .gap{padding:0 .2rem}.pager__info{margin-left:.6rem;color:#777;font-size:.85rem}
+
+/* Confirmación de pedidos por WhatsApp */
+.badge { display: inline-block; padding: .1rem .5rem; border-radius: 999px; font-size: .75rem; font-weight: 600; }
+.badge--por_confirmar { background: #fff4d6; color: #8a5a00; }
+.badge--confirmado { background: #dcf5e7; color: #136c3c; }
+.badge--cancelado { background: #fbe1e0; color: #8a1c17; }
+.btn-wa { display: inline-block; margin-bottom: .35rem; padding: .45rem .7rem; border-radius: 8px; background: #1fa855; color: #fff !important; font-weight: 600; text-decoration: none; font-size: .85rem; }
+.btn-wa:hover { background: #178a45; }
+.actions form { display: inline-block; margin: 0 .25rem .35rem 0; }
+.addr-edit { margin-top: .25rem; }
+.addr-edit summary { cursor: pointer; font-size: .85rem; color: #555; }
+.addr-edit form { display: grid !important; gap: .35rem; margin-top: .4rem; min-width: 220px; }
+.addr-edit label { display: grid; gap: .15rem; font-size: .8rem; }

@@ -85,8 +85,8 @@ final class OrderService
             $total = $subtotal + $shippingCharge;
             $this->db->prepare(
                 'INSERT INTO orders (payment_method, payment_status, subtotal, shipping_charge, total, currency,
-                                     customer, shipping_address, notes)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                                     customer, shipping_address, notes, confirm_status)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
             )->execute([
                 $paymentMethod,
                 $paymentMethod === 'cod' ? 'contraentrega' : 'pendiente',
@@ -94,6 +94,8 @@ final class OrderService
                 json_encode($customer, JSON_UNESCAPED_UNICODE),
                 json_encode($address, JSON_UNESCAPED_UNICODE),
                 $notes,
+                // Sin Mastershop, cada pedido se confirma por WhatsApp antes de ir a Dropi
+                $this->ms ? 'confirmado' : 'por_confirmar',
             ]);
             $orderId = (int) $this->db->lastInsertId();
 
@@ -155,12 +157,116 @@ final class OrderService
     {
         $st = $this->db->prepare(
             "SELECT * FROM orders
-             WHERE sync_status = 'pendiente_envio'
+             WHERE sync_status = 'pendiente_envio' AND confirm_status = 'confirmado'
                AND (payment_method = 'cod' OR payment_status = 'pagado')
              ORDER BY id LIMIT " . max(1, min(200, $limit))
         );
         $st->execute();
         return $st->fetchAll();
+    }
+
+    /* ---------------- Confirmación por WhatsApp ---------------- */
+
+    /** El cliente confirmó: el pedido pasa a «Por despachar». */
+    public function confirm(int $orderId, string $by): bool
+    {
+        $st = $this->db->prepare("UPDATE orders SET confirm_status = 'confirmado', confirmed_at = NOW(), confirmed_by = ?
+                                  WHERE id = ? AND confirm_status = 'por_confirmar'");
+        $st->execute([mb_substr($by, 0, 120), $orderId]);
+        return $st->rowCount() > 0;
+    }
+
+    /** No confirmó o canceló: nunca llega a Dropi y las unidades vuelven al inventario. */
+    public function cancel(int $orderId, string $by): bool
+    {
+        $this->db->beginTransaction();
+        try {
+            $st = $this->db->prepare("SELECT id FROM orders WHERE id = ? AND confirm_status <> 'cancelado' AND sync_status <> 'enviado' FOR UPDATE");
+            $st->execute([$orderId]);
+            if (!$st->fetchColumn()) {
+                $this->db->rollBack();
+                return false;   // ya cancelado, o ya está en Dropi (se cancela allá)
+            }
+            $items = $this->db->prepare('SELECT product_id, variant_id, quantity FROM order_items WHERE order_id = ?');
+            $items->execute([$orderId]);
+            $incV = $this->db->prepare('UPDATE product_variants SET stock = stock + ? WHERE id = ?');
+            $incP = $this->db->prepare('UPDATE products SET stock = stock + ? WHERE id = ? AND ms_product_id IS NULL');
+            foreach ($items as $it) {
+                if ($it['variant_id']) { $incV->execute([$it['quantity'], $it['variant_id']]); }
+                if ($it['product_id']) { $incP->execute([$it['quantity'], $it['product_id']]); }
+            }
+            $this->db->prepare("UPDATE orders SET confirm_status = 'cancelado', confirmed_at = NOW(), confirmed_by = ? WHERE id = ?")
+                ->execute([mb_substr($by, 0, 120), $orderId]);
+            $this->db->commit();
+            return true;
+        } catch (Throwable $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+    }
+
+    /** Corrige la dirección que dio el cliente al confirmar. */
+    public function updateAddress(int $orderId, array $in): void
+    {
+        $st = $this->db->prepare('SELECT shipping_address FROM orders WHERE id = ?');
+        $st->execute([$orderId]);
+        $a = json_decode((string) $st->fetchColumn(), true) ?: [];
+        foreach (['address1' => 255, 'address2' => 255, 'district' => 120, 'city' => 120, 'state' => 120] as $k => $max) {
+            if (array_key_exists($k, $in)) {
+                $v = trim((string) $in[$k]);
+                $a[$k] = $v === '' ? null : mb_substr($v, 0, $max);
+            }
+        }
+        if (empty($a['address1']) || empty($a['city']) || empty($a['state'])) {
+            throw new InvalidArgumentException('Dirección, municipio y departamento son obligatorios.');
+        }
+        $this->db->prepare('UPDATE orders SET shipping_address = ? WHERE id = ?')
+            ->execute([json_encode($a, JSON_UNESCAPED_UNICODE), $orderId]);
+    }
+
+    /** Mensaje de confirmación para enviar por WhatsApp (mismo estilo que los que se envían a mano). */
+    public function confirmText(int $orderId, string $sender): string
+    {
+        $o = $this->db->query('SELECT * FROM orders WHERE id = ' . (int) $orderId)->fetch();
+        $c = json_decode((string) $o['customer'], true) ?: [];
+        $a = json_decode((string) $o['shipping_address'], true) ?: [];
+        $items = $this->db->prepare('SELECT i.name, i.quantity, i.unit_price, p.box_contents FROM order_items i
+                                     LEFT JOIN products p ON p.id = i.product_id WHERE i.order_id = ? ORDER BY i.id');
+        $items->execute([$orderId]);
+        $first = explode(' ', trim((string) ($c['first_name'] ?? '')))[0] ?: 'hola';
+        $lines = [];
+        $lines[] = 'Hola ' . $first . '! 👋';
+        $lines[] = '';
+        $lines[] = 'Te saluda ' . $sender . ' de *Tendencity*, tu tienda de productos en tendencia ✨';
+        $lines[] = '';
+        $lines[] = 'Recibimos tu pedido *' . $o['external_id'] . '* y queremos confirmarlo antes de enviarlo:';
+        foreach ($items as $it) {
+            $short = trim(preg_split('/\s*(?::|\s[–—|-]\s)\s*/u', (string) $it['name'], 2)[0]);
+            $lines[] = '';
+            $lines[] = '🛍️ *' . (int) $it['quantity'] . ' ' . $short . '* – ' . money((int) $it['unit_price'] * (int) $it['quantity']);
+            $box = lines((string) $it['box_contents']);
+            if ($box) {
+                $lines[] = 'Incluye:';
+                foreach ($box as $b) { $lines[] = '• ' . $b; }
+            }
+        }
+        $lines[] = '';
+        $lines[] = $o['payment_method'] === 'cod'
+            ? '💵 Pagas *' . money((int) $o['total']) . ' en efectivo cuando lo recibas*.' . ((int) $o['shipping_charge'] === 0 ? ' El envío es gratis.' : '')
+            : '💳 Total: *' . money((int) $o['total']) . '* (pago anticipado).';
+        $lines[] = '';
+        $lines[] = '📍 *Datos de entrega:*';
+        $lines[] = '• Dirección: ' . trim(implode(', ', array_filter([$a['address1'] ?? '', $a['district'] ?? '', $a['address2'] ?? ''])));
+        $lines[] = '• ' . Country::get('city_label') . ': ' . ($a['city'] ?? '');
+        $lines[] = '• ' . Country::get('region_label') . ': ' . ($a['state'] ?? '');
+        $lines[] = '• Teléfono: ' . ($c['phone'] ?? '');
+        $lines[] = '';
+        $lines[] = '¿Nos ayudas con una *referencia* para que el mensajero encuentre tu casa fácilmente? (color de la casa, un negocio o una iglesia cercana)';
+        $lines[] = '';
+        $lines[] = '✅ Si todo está correcto, responde *CONFIRMAR* y despachamos tu pedido.';
+        $lines[] = '';
+        $lines[] = '¡Gracias por tu compra! 💜';
+        return implode("\n", $lines);
     }
 
     /** Marca un pedido como creado en el proveedor (Dropi) con su número allá. */

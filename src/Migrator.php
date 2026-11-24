@@ -11,7 +11,7 @@ declare(strict_types=1);
  */
 final class Migrator
 {
-    public const VERSION = 20;
+    public const VERSION = 21;
 
     public function __construct(private PDO $db) {}
 
@@ -183,6 +183,16 @@ final class Migrator
         }
         $this->db->exec("INSERT IGNORE INTO settings (k, v) VALUES ('pia_global', '1'), ('pia_global_discount', '5')");
         $this->localizeTexts();
+
+        // v21: confirmación del pedido por WhatsApp antes de despacharlo
+        if (!$this->hasColumn('orders', 'confirm_status')) {
+            $this->db->exec("ALTER TABLE orders
+                ADD COLUMN confirm_status VARCHAR(16) NOT NULL DEFAULT 'confirmado' AFTER sync_status,
+                ADD COLUMN confirmed_at DATETIME NULL AFTER confirm_status,
+                ADD COLUMN confirmed_by VARCHAR(120) NULL AFTER confirmed_at,
+                ADD INDEX (confirm_status)");
+            $done[] = 'confirmación de pedidos';   // los pedidos que ya existían quedan como confirmados
+        }
 
         // v20: celulares suscritos a los avisos de venta (notificaciones push)
         if (!$this->hasTable('push_subscriptions')) {
