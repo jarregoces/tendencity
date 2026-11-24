@@ -120,6 +120,11 @@ SalesApp::remember($email);   // renueva los 30 días cada vez que se abre
   .gate p { color: var(--muted); font-size: .92rem; }
   .gate button { width: 100%; margin-top: 1rem; padding: 1rem; border: 0; border-radius: 14px; background: var(--grad); color: #fff; font: 700 1.05rem system-ui, sans-serif; cursor: pointer; }
   .note { color: var(--muted); font-size: .78rem; margin-top: 1rem; }
+  .howto { margin-top: 1rem; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: .8rem .95rem; font-size: .88rem; }
+  .howto summary { cursor: pointer; font-weight: 600; }
+  .howto li { margin: .45rem 0; }
+  .howto a { color: #c4b5fd; }
+  .howto p { color: var(--muted); }
 </style>
 </head>
 <body>
@@ -150,6 +155,17 @@ SalesApp::remember($email);   // renueva los 30 días cada vez que se abre
   <button type="button" id="pushTest" hidden>📨 Enviar aviso de prueba</button>
   <a href="/admin/?p=pedidos">Ver en el panel</a>
 </div>
+
+<details class="howto">
+  <summary>🛎️ Que suene la caja registradora con el celular bloqueado (Android)</summary>
+  <ol>
+    <li><a href="/admin/caja-registradora.mp3" download="caja-registradora.mp3">Descarga el sonido de caja registradora</a>. Queda en la carpeta Descargas de tu celular.</li>
+    <li>Abre <b>Ajustes del celular → Aplicaciones → Ventas</b> (o <b>Chrome</b>, si no instalaste la app) <b>→ Notificaciones</b>.</li>
+    <li>Toca el tipo de aviso de <b>gt2.tendencity.store</b> (o «General») <b>→ Sonido</b> y elige <b>caja-registradora</b>. Si no aparece en la lista, busca «Agregar» o «Desde el almacenamiento» y elígelo en Descargas.</li>
+    <li>Vuelve aquí y toca <b>«Enviar aviso de prueba»</b> con la pantalla bloqueada.</li>
+  </ol>
+  <p>En iPhone, Apple no deja cambiar el sonido de los avisos de apps web: siempre suena el tono del sistema. Con la app abierta sí suena la caja registradora.</p>
+</details>
 <p class="note" id="pushNote">Con la app abierta, cada venta suena con la caja registradora. Activa <b>«Avisos con el celular bloqueado»</b> para recibir una notificación aunque la app esté cerrada (suena con el tono de notificación de tu celular).</p>
 
 <div class="gate" id="gate">
@@ -170,11 +186,18 @@ SalesApp::remember($email);   // renueva los 30 días cada vez que se abre
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-  let lastId = 0, ctx = null, wakeLock = null, timer = null, today = null;
+  let lastId = 0, ctx = null, wakeLock = null, timer = null, today = null, quiet = false;
 
-  /* ---------- Sonido de caja registradora (sintetizado, sin archivos) ---------- */
+  /* ---------- Sonido de caja registradora ---------- */
+  // Se usa el archivo /admin/caja-registradora.mp3; si no carga, se sintetiza en el momento.
+  let cajaBuf = null;
+  async function loadCaja() {
+    if (cajaBuf || !ctx) return;
+    try { cajaBuf = await ctx.decodeAudioData(await (await fetch('/admin/caja-registradora.mp3')).arrayBuffer()); } catch (e) { cajaBuf = null; }
+  }
   function kaching() {
     if (!ctx) return;
+    if (cajaBuf) { const src = ctx.createBufferSource(); src.buffer = cajaBuf; src.connect(ctx.destination); src.start(); return; }
     const t = ctx.currentTime + 0.02;
     // 1) "Clac" del cajón: ráfaga corta de ruido filtrado
     const len = Math.floor(ctx.sampleRate * 0.09), buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
@@ -232,7 +255,8 @@ SalesApp::remember($email);   // renueva los 30 días cada vez que se abre
       const data = await res.json();
       const isNewDay = today && data.date !== today;
       const fresh = new Set(lastId && !isNewDay ? data.new.map((o) => o.id) : []);
-      if (fresh.size) announce(data.new);
+      if (fresh.size) announce(data.new, quiet);
+      quiet = false;
       lastId = Math.max(lastId, data.last_id);
       render(data, fresh);
       live('on', `En vivo · ${data.now}`);
@@ -242,10 +266,10 @@ SalesApp::remember($email);   // renueva los 30 días cada vez que se abre
     timer = setTimeout(poll, 15000);
   }
 
-  function announce(orders) {
-    kaching();
-    navigator.vibrate?.([180, 80, 180]);
-    if ('Notification' in window && Notification.permission === 'granted') {
+  function announce(orders, alreadyRang) {
+    if (!alreadyRang) { kaching(); navigator.vibrate?.([180, 80, 180]); }
+    // Si el celular ya recibe avisos push, el service worker muestra la notificación: no duplicarla
+    if (!$('push').classList.contains('on') && 'Notification' in window && Notification.permission === 'granted') {
       const total = orders.reduce((s, o) => s + o.total, 0);
       const title = orders.length > 1 ? `¡${orders.length} ventas nuevas! ${money(total)}` : `¡Nueva venta! ${money(total)}`;
       const body = orders.map((o) => `${o.name} · ${o.items}`).join('\n');
@@ -269,11 +293,12 @@ SalesApp::remember($email);   // renueva los 30 días cada vez que se abre
   $('start').addEventListener('click', async () => {
     ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
     await ctx.resume();
+    await loadCaja();
     kaching();
     if ('Notification' in window && Notification.permission === 'default') { try { await Notification.requestPermission(); } catch (e) {} }
     $('gate').hidden = true;
   });
-  $('test').addEventListener('click', async () => { if (!ctx) { ctx = new (window.AudioContext || window.webkitAudioContext)(); } await ctx.resume(); kaching(); });
+  $('test').addEventListener('click', async () => { if (!ctx) { ctx = new (window.AudioContext || window.webkitAudioContext)(); } await ctx.resume(); await loadCaja(); kaching(); });
   $('wake').addEventListener('click', () => setWake(!wakeLock));
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {
@@ -325,7 +350,12 @@ SalesApp::remember($email);   // renueva los 30 días cada vez que se abre
     $('pushNote').textContent = r.ok ? `Aviso enviado a ${r.result.sent} celular(es). Bloquea la pantalla y debería llegar en segundos.` : 'Error: ' + r.error;
   });
   // Si llega un aviso con la app abierta, se actualiza al instante (y suena la caja)
-  navigator.serviceWorker?.addEventListener('message', (e) => { if (e.data?.type === 'venta') poll(); });
+  // Con la app abierta, todo aviso (también el de prueba) hace sonar la caja y actualiza los datos
+  navigator.serviceWorker?.addEventListener('message', (e) => {
+    if (e.data?.type !== 'venta') return;
+    kaching(); navigator.vibrate?.([180, 80, 180]);
+    quiet = true; poll();
+  });
 
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/admin/ventas-sw.js', { scope: '/admin/' }).then(pushState).catch(() => {});
   poll();
