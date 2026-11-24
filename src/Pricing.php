@@ -60,12 +60,13 @@ final class Pricing
         } else {
             $raw = is_string($p['qty_offers'] ?? null) ? json_decode($p['qty_offers'], true) : ($p['qty_offers'] ?? []);
         }
-        $out = [1 => ['qty' => 1, 'pct' => 0, 'label' => '', 'pill' => '']];
+        $out = [1 => ['qty' => 1, 'pct' => 0, 'label' => '', 'pill' => '', 'total' => null]];
         foreach ((array) $raw as $o) {
             $q = (int) ($o['qty'] ?? 0);
             if ($q >= 2 && $q <= 10) {
-                $out[$q] = ['qty' => $q, 'pct' => max(0, min(50, (int) ($o['pct'] ?? 0))), 'label' => (string) ($o['label'] ?? ''),
-                            'pill' => (string) ($o['pill'] ?? '')];
+                $total = (int) ($o['total'] ?? 0);
+                $out[$q] = ['qty' => $q, 'pct' => $total > 0 ? 0 : max(0, min(50, (int) ($o['pct'] ?? 0))), 'label' => (string) ($o['label'] ?? ''),
+                            'pill' => (string) ($o['pill'] ?? ''), 'total' => $total > 0 ? $total : null];
             }
         }
         ksort($out);
@@ -78,9 +79,30 @@ final class Pricing
         $out = [];
         foreach (preg_split('/\s*[|\n]\s*/', trim($s)) as $chunk) {
             $parts = array_map('trim', explode(':', $chunk, 4));
-            if ((int) ($parts[0] ?? 0) >= 2) { $out[] = ['qty' => (int) $parts[0], 'pct' => (int) ($parts[1] ?? 0), 'label' => $parts[2] ?? '', 'pill' => $parts[3] ?? '']; }
+            if ((int) ($parts[0] ?? 0) >= 2) { $out[] = self::offerFromParts($parts); }
         }
         return $out;
+    }
+
+    /**
+     * "2", "15" | "=289", "etiqueta", "texto de ahorro" → oferta. "=289" es un precio fijo por el paquete
+     * (2 por Q289) en lugar de un % de descuento.
+     */
+    public static function offerFromParts(array $parts): array
+    {
+        $raw = (string) ($parts[1] ?? '0');
+        $total = str_starts_with($raw, '=') ? (int) preg_replace('/\D/', '', $raw) : 0;
+        return ['qty' => (int) $parts[0], 'pct' => $total > 0 ? 0 : (int) $raw, 'label' => $parts[2] ?? '', 'pill' => $parts[3] ?? '',
+                'total' => $total > 0 ? $total : null];
+    }
+
+    /** Precio fijo del paquete para esa cantidad, o null si la oferta es por %. */
+    public static function offerTotal(array $p, int $qty): ?int
+    {
+        foreach (self::qtyOffers($p) as $o) {
+            if ($o['qty'] === $qty) { return $o['total']; }
+        }
+        return null;
     }
 
     /** % total para un pedido: oferta por cantidad + descuento por pago anticipado. */

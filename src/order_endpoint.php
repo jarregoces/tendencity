@@ -66,7 +66,12 @@ foreach ($variants as $v) {
     }
 }
 $unit = Pricing::discounted((int) ($variantPrice ?? $p['price']), $pct);
-$shipping = Pricing::shipping($unit * $qty);
+// Oferta de precio fijo (2 por Q289): el % que quede (pago anticipado) se aplica sobre el paquete
+$fixedTotal = Pricing::offerTotal($p, $qty);
+if ($fixedTotal !== null) {
+    $fixedTotal = Pricing::discounted($fixedTotal, $pct);
+}
+$shipping = Pricing::shipping($fixedTotal ?? $unit * $qty);
 
 // El nombre completo llega en un solo campo: se separa en nombre / apellido
 $full = trim(preg_replace('/\s+/', ' ', (string) ($in['full_name'] ?? '')));
@@ -99,7 +104,8 @@ try {
         $method,
         $shipping,
         mb_substr(trim((string) ($in['notes'] ?? '')), 0, 300) ?: null,
-        $pct,
+        $fixedTotal !== null ? 0 : $pct,
+        $fixedTotal,
     );
 } catch (InvalidArgumentException | DomainException $e) {
     $fail($e->getMessage());

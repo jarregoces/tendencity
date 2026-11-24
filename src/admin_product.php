@@ -159,7 +159,7 @@ function page_producto(PDO $db): void
 function advanced_form(PDO $db, array $p, string $hidden, array $cats, array $catIds): void
 {
     $own = $p['qty_offers'] !== null ? (json_decode((string) $p['qty_offers'], true) ?: []) : [];
-    $offersTxt = implode("\n", array_map(fn($o) => "{$o['qty']}:{$o['pct']}" . (!empty($o['label']) || !empty($o['pill']) ? ':' . ($o['label'] ?? '') : '') . (!empty($o['pill']) ? ":{$o['pill']}" : ''), $own));
+    $offersTxt = implode("\n", array_map(fn($o) => "{$o['qty']}:" . (!empty($o['total']) ? '=' . (int) $o['total'] : $o['pct']) . (!empty($o['label']) || !empty($o['pill']) ? ':' . ($o['label'] ?? '') : '') . (!empty($o['pill']) ? ":{$o['pill']}" : ''), $own));
     $faqTxt = implode("\n", array_map(fn($f) => "{$f['q']} :: {$f['a']}", faq_list($p['faq'])));
     $vars = $db->query('SELECT name, image FROM product_variants WHERE product_id = ' . (int) $p['id'] . ' AND name IS NOT NULL ORDER BY id')->fetchAll();
     $pics = array_values(array_unique(array_merge(product_images($p), array_column(json_decode($p['body_images'] ?? '[]', true) ?: [], 'src'),

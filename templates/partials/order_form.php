@@ -50,8 +50,10 @@ $req = '<b class="req" aria-hidden="true">*</b>';
     <fieldset class="order__group offers">
       <legend class="sr">¿Cuántas unidades?</legend>
       <?php foreach ($offers as $i => $o):
+          $save = $o['total'] ? (int) $p['price'] * $o['qty'] - $o['total'] : 0;
           $pill = $o['pill'] !== '' ? $o['pill']
-              : ($o['qty'] === 1 ? '¡Pídelo ahora!' : ($o['qty'] === 2 && $o['pct'] ? 'Ahorra ' . ($o['pct'] * 2) . '% en el segundo' : ($o['pct'] ? "Ahorras {$o['pct']}%" : ''))); ?>
+              : ($o['qty'] === 1 ? '¡Pídelo ahora!' : ($save > 0 ? 'Ahorras ' . money($save)
+              : ($o['qty'] === 2 && $o['pct'] ? 'Ahorra ' . ($o['pct'] * 2) . '% en el segundo' : ($o['pct'] ? "Ahorras {$o['pct']}%" : '')))); ?>
         <label class="offer">
           <input type="radio" name="qty" value="<?= $o['qty'] ?>" <?= $i ? '' : 'checked' ?>>
           <span class="offer__box">

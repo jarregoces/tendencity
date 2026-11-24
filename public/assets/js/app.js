@@ -115,12 +115,13 @@
     cfg.offers.forEach((o) => {
       const el = form.querySelector(`[data-offer-price="${o.qty}"]`);
       const pct = Math.min(60, o.pct + extra);
-      if (el) el.textContent = money(disc(base, pct) * o.qty);
+      const amount = o.total ? disc(o.total, extra) : disc(base, pct) * o.qty;   // paquete a precio fijo o % de descuento
+      if (el) el.textContent = money(amount);
       const before = form.querySelector(`[data-offer-before="${o.qty}"]`);   // precio tachado sin descuento
-      if (before) before.textContent = pct ? money(base * o.qty) : '';
+      if (before) before.textContent = amount < base * o.qty ? money(base * o.qty) : '';
     });
     const offer = cfg.offers.find((o) => o.qty === qty) || { pct: 0 };
-    const sub = disc(base, Math.min(60, offer.pct + extra)) * qty;
+    const sub = offer.total ? disc(offer.total, extra) : disc(base, Math.min(60, offer.pct + extra)) * qty;
     const ship = cfg.freeFrom > 0 && sub >= cfg.freeFrom ? 0 : cfg.flat;
     $('[data-sum=sub]', form).textContent = money(sub);
     $('[data-sum=ship]', form).textContent = ship ? money(ship) : TC.ship;

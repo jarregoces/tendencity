@@ -31,6 +31,7 @@ final class OrderService
         int $shippingCharge = 0,
         ?string $notes = null,
         int $discountPct = 0,
+        ?int $fixedTotal = null,   // precio fijo del paquete (oferta «2 por Q289»); solo con una línea en el carrito
     ): int {
         if (!in_array($paymentMethod, ['cod', 'pia'], true)) {
             throw new InvalidArgumentException('Método de pago inválido');
@@ -67,6 +68,14 @@ final class OrderService
                 $price = Pricing::discounted((int) ($row['vprice'] ?? $row['pprice']), $discountPct);
                 $name  = $row['vname'] && $row['vname'] !== $row['pname']
                     ? "{$row['pname']} - {$row['vname']}" : $row['pname'];
+                // Paquete a precio fijo: 289 en 2 unidades → 1 × 145 + 1 × 144 (enteros que suman exacto)
+                $splits = [[$price, $qty]];
+                if ($fixedTotal !== null && count($cart) === 1) {
+                    $base = intdiv($fixedTotal, $qty);
+                    $rem = $fixedTotal % $qty;
+                    $splits = array_values(array_filter([[$base + 1, $rem], [$base, $qty - $rem]], fn($s) => $s[1] > 0));
+                }
+                foreach ($splits as [$price, $splitQty]) {
                 $items[] = [
                     'product_id'    => (int) $row['product_id'],
                     'variant_id'    => (int) $row['id'],
@@ -74,12 +83,13 @@ final class OrderService
                     'ms_variant_id' => $row['ms_variant_id'] !== null ? (int) $row['ms_variant_id'] : null,
                     'sku'           => $row['sku'],
                     'name'          => $name,
-                    'quantity'      => $qty,
+                    'quantity'      => $splitQty,
                     'unit_price'    => $price,
                     'weight'        => $row['vweight'] ?? $row['pweight'],
                     'unit_cost'     => $row['pcost'] !== null ? (int) $row['pcost'] : null,
                 ];
-                $subtotal += $price * $qty; // enteros: sin errores de coma flotante
+                $subtotal += $price * $splitQty; // enteros: sin errores de coma flotante
+                }
             }
 
             $total = $subtotal + $shippingCharge;
