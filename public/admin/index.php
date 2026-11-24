@@ -16,6 +16,7 @@ const ADMIN_MENU = [
         'inicio'  => ['Dashboard', 'M3 13h7V3H3zM14 21h7V11h-7zM3 21h7v-5H3zM14 3v5h7V3z'],
         'fuentes' => ['Fuentes de tráfico', 'M4 19V9M10 19V5M16 19v-7M22 19H2'],
         'pedidos' => ['Pedidos', 'M6 2h12l2 6H4zM4 8h16v13H4zM9 12h6'],
+        'ventas'  => ['App de ventas (celular)', 'M7 2h10a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zM11 18h2'],
     ],
     'Tienda' => [
         'productos'  => ['Productos', 'M21 8l-9-5-9 5 9 5 9-5zM3 8v8l9 5 9-5V8M12 13v8'],
@@ -142,7 +143,8 @@ if (empty($_SESSION['admin']) && (int) $db->query('SELECT COUNT(*) FROM admins')
 }
 
 /* ---------- Login ---------- */
-if ($page === 'salir') { session_destroy(); header('Location: ?p=login'); exit; }
+if ($page === 'salir') { session_destroy(); SalesApp::forget(); header('Location: ?p=login'); exit; }
+if ($page === 'ventas') { header('Location: /admin/ventas.php'); exit; }
 if (empty($_SESSION['admin'])) {
     $error = '';
     if ($isPost && $page === 'login') {
@@ -155,7 +157,9 @@ if (empty($_SESSION['admin'])) {
             session_regenerate_id(true);
             $_SESSION['admin'] = $a['email'];
             $db->prepare('UPDATE admins SET last_login_at = NOW() WHERE id = ?')->execute([$a['id']]);
-            header('Location: ?p=inicio');
+            $next = $_SESSION['after_login'] ?? '';
+            unset($_SESSION['after_login']);
+            header('Location: ' . ($next === '/admin/ventas.php' ? $next : '?p=inicio'));   // solo destinos conocidos
             exit;
         }
         $error = 'Correo o contraseña incorrectos.';
