@@ -11,7 +11,7 @@ declare(strict_types=1);
  */
 final class Migrator
 {
-    public const VERSION = 19;
+    public const VERSION = 20;
 
     public function __construct(private PDO $db) {}
 
@@ -183,6 +183,21 @@ final class Migrator
         }
         $this->db->exec("INSERT IGNORE INTO settings (k, v) VALUES ('pia_global', '1'), ('pia_global_discount', '5')");
         $this->localizeTexts();
+
+        // v20: celulares suscritos a los avisos de venta (notificaciones push)
+        if (!$this->hasTable('push_subscriptions')) {
+            $this->db->exec("CREATE TABLE push_subscriptions (
+                id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                endpoint_hash CHAR(64) NOT NULL UNIQUE,
+                endpoint TEXT NOT NULL,
+                admin_email VARCHAR(190) NOT NULL,
+                user_agent VARCHAR(255) NULL,
+                fails SMALLINT UNSIGNED NOT NULL DEFAULT 0,
+                last_ok DATETIME NULL,
+                created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+            $done[] = 'avisos push';
+        }
 
         $this->db->prepare("REPLACE INTO settings (k, v) VALUES ('schema_version', ?)")->execute([(string) self::VERSION]);
         if ($done) {

@@ -97,6 +97,8 @@ final class SalesApp
         $total = array_sum(array_column($list, 'total'));
         return [
             'ok'        => true,
+            'sym'       => Country::get('symbol'),
+            'loc'       => Country::get('locale'),
             'date'      => date('Y-m-d'),
             'now'       => date('g:i a'),
             'count'     => count($list),

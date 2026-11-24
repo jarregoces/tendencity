@@ -6,6 +6,7 @@ declare(strict_types=1);
  *   /admin/ventas.php            → la app (instalable en la pantalla de inicio)
  *   /admin/ventas.php?data=1     → JSON con las ventas de hoy (&since=ID para saber cuáles son nuevas)
  *   /admin/ventas.php?salir=1    → olvida este celular
+ *   ?push=key | POST ?push=subscribe | POST ?push=unsubscribe | POST ?push=test  → avisos con el celular bloqueado
  */
 require dirname(__DIR__, 2) . '/src/bootstrap.php';
 require dirname(__DIR__, 2) . '/src/helpers.php';
@@ -22,6 +23,32 @@ if (isset($_GET['salir'])) {
 }
 
 $email = SalesApp::auth($db);
+if (isset($_GET['push'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    if (!$email) { http_response_code(401); echo json_encode(['ok' => false, 'error' => 'login']); exit; }
+    try {
+        $action = (string) $_GET['push'];
+        if ($action === 'key') {
+            echo json_encode(['ok' => true, 'key' => WebPush::publicKey($db)]);
+            exit;
+        }
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); exit; }
+        csrf_check();
+        $in = json_decode((string) file_get_contents('php://input'), true) ?: [];
+        $endpoint = (string) ($in['endpoint'] ?? '');
+        $res = match ($action) {
+            'subscribe'   => (WebPush::subscribe($db, $email, $endpoint, (string) ($_SERVER['HTTP_USER_AGENT'] ?? '')) ?? true),
+            'unsubscribe' => (WebPush::unsubscribe($db, $endpoint) ?? true),
+            'test'        => WebPush::notifyAll($db),
+            default       => throw new InvalidArgumentException('Acción no válida'),
+        };
+        echo json_encode(['ok' => true, 'result' => $res]);
+    } catch (Throwable $e) {
+        http_response_code(422);
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+    }
+    exit;
+}
 if (isset($_GET['data'])) {
     header('Content-Type: application/json; charset=utf-8');
     if (!$email) {
@@ -119,9 +146,11 @@ SalesApp::remember($email);   // renueva los 30 días cada vez que se abre
 <div class="tools">
   <button type="button" id="test">🔔 Probar sonido</button>
   <button type="button" id="wake">📱 Pantalla siempre encendida</button>
+  <button type="button" id="push">🔔 Avisos con el celular bloqueado</button>
+  <button type="button" id="pushTest" hidden>📨 Enviar aviso de prueba</button>
   <a href="/admin/?p=pedidos">Ver en el panel</a>
 </div>
-<p class="note">Deja esta app abierta para escuchar cada venta. El celular revisa cada 15 segundos. Si la cierras o se bloquea la pantalla, el sistema la pausa: al volver, se pone al día sola.</p>
+<p class="note" id="pushNote">Con la app abierta, cada venta suena con la caja registradora. Activa <b>«Avisos con el celular bloqueado»</b> para recibir una notificación aunque la app esté cerrada (suena con el tono de notificación de tu celular).</p>
 
 <div class="gate" id="gate">
   <div>
@@ -133,6 +162,7 @@ SalesApp::remember($email);   // renueva los 30 días cada vez que se abre
 </div>
 
 <?= country_js() ?>
+<script>window.CSRF = <?= json_encode(csrf_token()) ?>;</script>
 <script>
 (() => {
   const TC = window.TC || { sym: 'Q', loc: 'es-GT' };
@@ -252,7 +282,52 @@ SalesApp::remember($email);   // renueva los 30 días cada vez que se abre
       ctx?.resume();
     }
   });
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/admin/ventas-sw.js', { scope: '/admin/' }).catch(() => {});
+  /* ---------- Avisos push (celular bloqueado) ---------- */
+  const pushOK = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  const b64ToBytes = (s) => { const p = '='.repeat((4 - s.length % 4) % 4), b = atob((s + p).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(b, (c) => c.charCodeAt(0)); };
+  const api = (action, body) => fetch(`ventas.php?push=${action}`, { method: 'POST', credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', 'X-CSRF': window.CSRF }, body: JSON.stringify(body || {}) }).then((r) => r.json());
+  function pushUI(on, msg) {
+    $('push').classList.toggle('on', on);
+    $('push').textContent = on ? '🔔 Avisos con celular bloqueado: activos' : '🔔 Avisos con el celular bloqueado';
+    $('pushTest').hidden = !on;
+    if (msg) $('pushNote').textContent = msg;
+  }
+  async function pushState() {
+    if (!pushOK) {
+      const ios = /iphone|ipad/i.test(navigator.userAgent);
+      $('push').disabled = true;
+      $('pushNote').textContent = ios
+        ? 'En iPhone, los avisos con el celular bloqueado funcionan solo con la app instalada: Compartir → «Agregar a inicio», y ábrela desde el ícono.'
+        : 'Este navegador no permite avisos con el celular bloqueado. Usa Chrome en Android.';
+      return;
+    }
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if (sub) { api('subscribe', { endpoint: sub.endpoint }).catch(() => {}); }   // mantiene registrada la suscripción
+    pushUI(!!sub);
+  }
+  $('push').addEventListener('click', async () => {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      const cur = await reg.pushManager.getSubscription();
+      if (cur) { await api('unsubscribe', { endpoint: cur.endpoint }); await cur.unsubscribe(); return pushUI(false, 'Avisos desactivados en este celular.'); }
+      if (await Notification.requestPermission() !== 'granted') return pushUI(false, 'Sin permiso de notificaciones: actívalo en los ajustes del navegador para esta página.');
+      const { key } = await (await fetch('ventas.php?push=key', { credentials: 'same-origin' })).json();
+      const sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(key) });
+      const r = await api('subscribe', { endpoint: sub.endpoint });
+      if (!r.ok) throw new Error(r.error);
+      pushUI(true, '¡Listo! Te avisaremos de cada venta aunque la app esté cerrada. Prueba con «Enviar aviso de prueba».');
+    } catch (e) { pushUI(false, 'No se pudieron activar los avisos: ' + e.message); }
+  });
+  $('pushTest').addEventListener('click', async () => {
+    const r = await api('test');
+    $('pushNote').textContent = r.ok ? `Aviso enviado a ${r.result.sent} celular(es). Bloquea la pantalla y debería llegar en segundos.` : 'Error: ' + r.error;
+  });
+  // Si llega un aviso con la app abierta, se actualiza al instante (y suena la caja)
+  navigator.serviceWorker?.addEventListener('message', (e) => { if (e.data?.type === 'venta') poll(); });
+
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('/admin/ventas-sw.js', { scope: '/admin/' }).then(pushState).catch(() => {});
   poll();
 })();
 </script>

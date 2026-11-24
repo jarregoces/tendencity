@@ -126,8 +126,16 @@ echo json_encode([
     'redirect' => '/pedido-confirmado/' . strtolower($ref['external_id']) . '/?k=' . order_key($ref['external_id']),
 ], JSON_UNESCAPED_UNICODE);
 
-// API de Conversiones de Meta: se envía después de responder, para que el cliente no espere
-if (MetaCapi::ready()) {
+// Después de responder (el cliente no espera): API de Conversiones de Meta y aviso de venta al celular
+$isTest = (bool) db()->query("SELECT 1 FROM orders WHERE id = " . (int) $orderId . " AND COALESCE(sync_error, '') LIKE 'Pedido de prueba%'")->fetchColumn();
+$capi = MetaCapi::ready();
+$push = !$isTest && WebPush::hasSubscribers(db());
+if ($capi || $push) {
     if (function_exists('fastcgi_finish_request')) { fastcgi_finish_request(); } else { @ob_end_flush(); flush(); }
-    try { MetaCapi::purchase((int) $orderId); } catch (Throwable $e) { error_log('[meta-capi] ' . $e->getMessage()); }
+    if ($push) {
+        try { WebPush::notifyAll(db()); } catch (Throwable $e) { error_log('[webpush] ' . $e->getMessage()); }
+    }
+    if ($capi) {
+        try { MetaCapi::purchase((int) $orderId); } catch (Throwable $e) { error_log('[meta-capi] ' . $e->getMessage()); }
+    }
 }
