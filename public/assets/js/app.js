@@ -3,7 +3,7 @@
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
   // Datos del país de la tienda (los pone layout.php): moneda, símbolo, redondeo
-  const TC = Object.assign({ cur: 'COP', sym: '$', loc: 'es-CO', step: 100, ship: 'Incluido a toda Colombia' }, window.TC || {});
+  const TC = Object.assign({ cur: 'COP', sym: '$', loc: 'es-CO', step: 100, digits: 10, ship: 'Incluido a toda Colombia' }, window.TC || {});
   const money = (n) => TC.sym + Math.round(n).toLocaleString(TC.loc);
 
   // Cerrar el menú móvil al tocar fuera
@@ -95,6 +95,7 @@
   const cfg = JSON.parse(form.dataset.cfg);
   const err = $('.order__error', form);
   const submit = $('[data-submit]', form);
+  const submitHTML = submit.innerHTML;   // para restaurar el botón (con su total) si falla el envío
 
   // Misma regla que Pricing::discounted en PHP (redondeo a $100 hacia abajo)
   const disc = (price, pct) => pct ? Math.floor(price * (100 - pct) / 100 / TC.step) * TC.step : price;
@@ -113,7 +114,10 @@
     const extra = method === 'pia' ? cfg.piaPct : 0;
     cfg.offers.forEach((o) => {
       const el = form.querySelector(`[data-offer-price="${o.qty}"]`);
-      if (el) el.textContent = money(disc(base, Math.min(60, o.pct + extra)) * o.qty);
+      const pct = Math.min(60, o.pct + extra);
+      if (el) el.textContent = money(disc(base, pct) * o.qty);
+      const before = form.querySelector(`[data-offer-before="${o.qty}"]`);   // precio tachado sin descuento
+      if (before) before.textContent = pct ? money(base * o.qty) : '';
     });
     const offer = cfg.offers.find((o) => o.qty === qty) || { pct: 0 };
     const sub = disc(base, Math.min(60, offer.pct + extra)) * qty;
@@ -121,6 +125,8 @@
     $('[data-sum=sub]', form).textContent = money(sub);
     $('[data-sum=ship]', form).textContent = ship ? money(ship) : TC.ship;
     $('[data-sum=total]', form).textContent = money(sub + ship);
+    const btn = $('[data-sum=btn]', form);
+    if (btn) btn.textContent = money(sub + ship);
   };
   form.addEventListener('change', update);
   update();
@@ -156,11 +162,11 @@
     err.hidden = true;
     // Validación en el navegador: primero el campo que falte
     const phone = form.phone;
-    phone.value = phone.value.replace(/\D/g, '').slice(-10);
+    phone.value = phone.value.replace(/\D/g, '').slice(-TC.digits);
     for (const input of $$('input[required], select[required]', form)) {
       if (!input.checkValidity()) {
-        const label = input.closest('.field')?.querySelector('span')?.textContent.trim() || 'Este campo';
-        return showError(input === phone ? 'Escribe un celular de 10 dígitos que empiece por 3.' : `Completa: ${label}.`, input.name);
+        const label = (input.closest('.field')?.querySelector('span')?.textContent || 'Este campo').replace('*', '').trim();
+        return showError(input === phone ? `Escribe un celular de ${TC.digits} dígitos.` : `Completa: ${label}.`, input.name);
       }
     }
     submit.disabled = true;
@@ -177,7 +183,8 @@
     } catch (ex) {
       showError(ex.message, ex.field);
       submit.disabled = false;
-      submit.textContent = 'Confirmar pedido';
+      submit.innerHTML = submitHTML;
+      update();
     }
   });
 })();

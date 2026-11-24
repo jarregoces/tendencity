@@ -48,7 +48,7 @@ final class Importer
         'contraentrega'       => 'si / no',
         'anticipado'          => 'si / no',
         'descuento_anticipado'=> '% de descuento por pagar anticipado',
-        'ofertas_cantidad'    => 'cantidad:%:etiqueta | ...  Ej: 2:10:Más vendido | 3:15. Vacío = la oferta general de la tienda; ninguna = sin oferta',
+        'ofertas_cantidad'    => 'cantidad:%:etiqueta:texto de ahorro | ...  Ej: 2:15:¡OFERTA MÁS POPULAR!:Ahorra 30% en el segundo KIT | 3:20. Vacío = la oferta general de la tienda; ninguna = sin oferta',
         'imagenes_descripcion'=> 'Imágenes diseñadas para el cuerpo de la página (características, ingredientes, uso, comparativa), separadas por |. Opcional: ruta :: qué muestra',
         'orden'               => 'Número para ordenar (menor sale primero)',
         'destacado'           => 'si / no: sale primero en portada y categoría',
@@ -281,9 +281,9 @@ final class Importer
             $offers = [];
             if (strtoupper($r['ofertas_cantidad']) !== 'BORRAR') {
                 foreach (explode('|', $r['ofertas_cantidad']) as $chunk) {
-                    $parts = array_map('trim', explode(':', $chunk, 3));
+                    $parts = array_map('trim', explode(':', $chunk, 4));
                     if ((int) ($parts[0] ?? 0) >= 2) {
-                        $offers[] = ['qty' => (int) $parts[0], 'pct' => (int) ($parts[1] ?? 0), 'label' => $parts[2] ?? ''];
+                        $offers[] = ['qty' => (int) $parts[0], 'pct' => (int) ($parts[1] ?? 0), 'label' => $parts[2] ?? '', 'pill' => $parts[3] ?? ''];
                     }
                 }
             }

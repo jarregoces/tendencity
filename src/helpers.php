@@ -34,6 +34,7 @@ function country_js(): string
         'sym'  => Country::get('symbol'),
         'loc'  => Country::get('locale'),
         'step' => (int) Country::get('round_step'),
+        'digits' => (int) Country::get('phone_digits'),
         'ship' => 'Incluido ' . Country::toAll(),
     ];
     return '<script>window.TC=' . json_encode($cfg, JSON_UNESCAPED_UNICODE | JSON_HEX_TAG) . ';</script>';

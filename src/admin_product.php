@@ -159,7 +159,7 @@ function page_producto(PDO $db): void
 function advanced_form(PDO $db, array $p, string $hidden, array $cats, array $catIds): void
 {
     $own = $p['qty_offers'] !== null ? (json_decode((string) $p['qty_offers'], true) ?: []) : [];
-    $offersTxt = implode("\n", array_map(fn($o) => "{$o['qty']}:{$o['pct']}" . (!empty($o['label']) ? ":{$o['label']}" : ''), $own));
+    $offersTxt = implode("\n", array_map(fn($o) => "{$o['qty']}:{$o['pct']}" . (!empty($o['label']) || !empty($o['pill']) ? ':' . ($o['label'] ?? '') : '') . (!empty($o['pill']) ? ":{$o['pill']}" : ''), $own));
     $faqTxt = implode("\n", array_map(fn($f) => "{$f['q']} :: {$f['a']}", faq_list($p['faq'])));
     $vars = $db->query('SELECT name, image FROM product_variants WHERE product_id = ' . (int) $p['id'] . ' AND name IS NOT NULL ORDER BY id')->fetchAll();
     $pics = array_values(array_unique(array_merge(product_images($p), array_column(json_decode($p['body_images'] ?? '[]', true) ?: [], 'src'),
@@ -184,7 +184,7 @@ function advanced_form(PDO $db, array $p, string $hidden, array $cats, array $ca
           <label>Oferta hasta <input name="oferta_hasta" type="date" value="<?= $p['offer_until'] ? e(substr($p['offer_until'], 0, 10)) : '' ?>"></label>
         </div>
         <label class="check"><input type="checkbox" name="oferta_general" value="1" <?= $p['qty_offers'] === null ? 'checked' : '' ?>> Usar la oferta por cantidad general de la tienda <small class="muted">(<?= e((string) setting('def_qty_offers', '')) ?: 'ninguna' ?>)</small></label>
-        <label>…o una oferta propia <small>(cantidad:%:etiqueta, una por línea; vacía y sin la casilla = sin oferta)</small><textarea name="ofertas_cantidad" rows="2" placeholder="2:10:Más vendido&#10;3:15"><?= e($offersTxt) ?></textarea></label>
+        <label>…o una oferta propia <small>(cantidad:%:etiqueta:texto de ahorro, una por línea; vacía y sin la casilla = sin oferta)</small><textarea name="ofertas_cantidad" rows="2" placeholder="2:10:Más vendido&#10;3:15"><?= e($offersTxt) ?></textarea></label>
       </fieldset>
       <fieldset><legend>Formulario de pedido</legend>
         <div class="row">

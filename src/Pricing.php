@@ -60,24 +60,25 @@ final class Pricing
         } else {
             $raw = is_string($p['qty_offers'] ?? null) ? json_decode($p['qty_offers'], true) : ($p['qty_offers'] ?? []);
         }
-        $out = [1 => ['qty' => 1, 'pct' => 0, 'label' => '']];
+        $out = [1 => ['qty' => 1, 'pct' => 0, 'label' => '', 'pill' => '']];
         foreach ((array) $raw as $o) {
             $q = (int) ($o['qty'] ?? 0);
             if ($q >= 2 && $q <= 10) {
-                $out[$q] = ['qty' => $q, 'pct' => max(0, min(50, (int) ($o['pct'] ?? 0))), 'label' => (string) ($o['label'] ?? '')];
+                $out[$q] = ['qty' => $q, 'pct' => max(0, min(50, (int) ($o['pct'] ?? 0))), 'label' => (string) ($o['label'] ?? ''),
+                            'pill' => (string) ($o['pill'] ?? '')];
             }
         }
         ksort($out);
         return array_values($out);
     }
 
-    /** "2:10:Más vendido | 3:15" → [['qty'=>2,'pct'=>10,'label'=>'Más vendido'], …] */
+    /** "2:10:Más vendido:Ahorra 20% en el segundo | 3:15" → [['qty'=>2,'pct'=>10,'label'=>'Más vendido','pill'=>'Ahorra…'], …] */
     public static function parseOffers(string $s): array
     {
         $out = [];
         foreach (preg_split('/\s*[|\n]\s*/', trim($s)) as $chunk) {
-            $parts = array_map('trim', explode(':', $chunk, 3));
-            if ((int) ($parts[0] ?? 0) >= 2) { $out[] = ['qty' => (int) $parts[0], 'pct' => (int) ($parts[1] ?? 0), 'label' => $parts[2] ?? '']; }
+            $parts = array_map('trim', explode(':', $chunk, 4));
+            if ((int) ($parts[0] ?? 0) >= 2) { $out[] = ['qty' => (int) $parts[0], 'pct' => (int) ($parts[1] ?? 0), 'label' => $parts[2] ?? '', 'pill' => $parts[3] ?? '']; }
         }
         return $out;
     }

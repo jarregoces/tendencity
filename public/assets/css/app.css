@@ -816,3 +816,50 @@ html, body { overflow-x: clip; }                       /* red de seguridad: nada
 /* Imágenes intercaladas en el texto de venta */
 .body-img--in { margin: 1.5rem 0; }
 .body-img--in img { width: 100%; height: auto; border-radius: 16px; display: block; }
+
+/* ===== Formulario de pedido: diseño tipo checkout ===== */
+.order__hero { position: relative; overflow: hidden; display: flex; align-items: center; gap: .9rem; margin-top: 1rem; padding: 1rem 1.1rem;
+  border-radius: 16px; color: #fff; background: linear-gradient(100deg, #7c3aed 0%, #a855f7 45%, #c026d3 75%, #38bdf8 100%); }
+.order__hero::before { content: ""; position: absolute; inset: auto -10% -60% 35%; height: 120%; background: rgba(0,0,0,.18); transform: rotate(-8deg); }
+.order__hero > * { position: relative; }
+.order__hero-ico { flex: none; display: grid; place-items: center; width: 52px; height: 52px; border-radius: 12px; background: rgba(255,255,255,.22); }
+.order__hero strong { display: block; font: 700 1.35rem/1.15 var(--f-head); }
+.order__hero span { font-size: .92rem; }
+.order__hero em { font-style: normal; font-weight: 700; color: #d9f99d; }
+
+.order__more { margin: .8rem 0 0; padding: .75rem 1rem; border: 1px solid #f5d0e6; border-radius: 12px; background: #fdf2f8; color: var(--ink); font-size: .95rem; }
+.order__more strong { color: #7c3aed; }
+
+.offers { margin-top: .9rem; }
+.offers .offer { margin-bottom: .7rem; }
+.offers .offer__box { position: relative; display: grid; grid-template-columns: auto 1fr auto; grid-template-areas: "img body radio" "img pill pill";
+  align-items: center; gap: .35rem .8rem; padding: .8rem .9rem; border: 2px solid var(--line); border-radius: 14px; background: #fff; transition: border-color .15s, background .15s; }
+.offers .offer input:checked + .offer__box { border-color: #1d6fc4; background: #e4f0fb; box-shadow: none; }
+.offer__img { grid-area: img; width: 72px; height: 72px; object-fit: cover; border-radius: 10px; }
+.offer__body { grid-area: body; display: grid; gap: .3rem; }
+.offers .offer__name { font: 500 1rem/1.25 var(--f-head); color: var(--ink); }
+.offers .offer__name b { font-weight: 700; }
+.offer__prices { display: flex; align-items: baseline; gap: .4rem; flex-wrap: wrap; }
+.offer__prices s { color: var(--muted); font-size: .9rem; }
+.offer__prices s:empty { display: none; }
+.offers .offer__price { font: 600 1.1rem var(--f-head); color: var(--ink); }
+.offer__radio { grid-area: radio; align-self: start; width: 22px; height: 22px; border-radius: 50%; border: 2px solid #c0267f; background: #fff; }
+.offers .offer input:checked + .offer__box .offer__radio { border-color: #9ca3af; box-shadow: inset 0 0 0 5px #9ca3af; }
+.offer__pill { grid-area: pill; justify-self: end; padding: .4rem .8rem; border-radius: 10px; background: #be1a7f; color: #fff; font: 600 .82rem var(--f-head); text-align: center; }
+.offer__pill--soft { background: #b8b8b8; }
+
+.req { color: #e11d48; font-weight: 700; }
+.field__ctl { position: relative; display: block; }
+.field__ctl > svg { position: absolute; left: .85rem; top: 50%; transform: translateY(-50%); color: #111; pointer-events: none; }
+.field__ctl input, .field__ctl select { padding-left: 2.7rem; background: #f3f5fa; border-color: #f3f5fa; }
+.field__ctl input:focus, .field__ctl select:focus { background: #fff; }
+
+.btn--buy { width: 100%; justify-content: center; background: #9c0f86; color: #fff; text-transform: uppercase; letter-spacing: .02em; font-weight: 500; border-radius: 10px; }
+.btn--buy:hover { background: #860c73; }
+.btn--buy:disabled { opacity: .7; }
+
+.order__trust { list-style: none; margin: 1rem 0 0; padding: 1rem .6rem; display: grid; grid-template-columns: repeat(4, 1fr); border-radius: 12px;
+  background: radial-gradient(120% 140% at 50% 0%, #2a2a2a 0%, #0d0d0d 70%); box-shadow: inset 0 0 0 1px rgba(212,166,74,.55), inset 0 0 0 6px #0d0d0d, inset 0 0 0 7px rgba(212,166,74,.35); }
+.order__trust li { display: grid; justify-items: center; align-content: start; gap: .5rem; padding: .2rem .3rem; text-align: center; color: #fff; font: 600 .66rem/1.25 var(--f-head); text-transform: uppercase; letter-spacing: .02em; }
+.order__trust li + li { border-left: 1px solid rgba(212,166,74,.45); }
+.order__trust svg { color: #d9ad52; }
