@@ -26,5 +26,7 @@ jobs:
           curl -sv --ssl-reqd --max-time 30 -u "$U:$P" "ftp://$S/" -o /dev/null 2>&1 | grep -E '< 257' || true
           ls_ftp ""
           ls_ftp "public_html/"
+          ls_ftp "public_html/public/"
+          ls_ftp "public_html/public/uploads/"
           ls_ftp "public_html/public/assets/css/"
           

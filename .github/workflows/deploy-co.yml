@@ -5,6 +5,8 @@ on:
   push:
     # La rama claude/… está solo mientras no exista main. Quítala después.
     branches: [main, claude/admiring-hamilton-0p5b3m]
+    # Cambiar solo los workflows no sube la tienda (para revisar el FTP sin desplegar)
+    paths-ignore: ['.github/workflows/**']
   workflow_dispatch:
 
 concurrency:
