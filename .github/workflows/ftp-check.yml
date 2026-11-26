@@ -19,7 +19,7 @@ jobs:
         run: |
           ls_ftp() { echo "===== /$1"; curl -sS --ssl-reqd --max-time 30 -u "$U:$P" "ftp://$S/$1" 2>&1 || echo "(no existe o sin acceso)"; }
           echo "IP del servidor FTP:     $(getent hosts "$S" | awk '{print $1}')"
-          echo "IP de tendencity.store:  $(getent hosts tendencity.store | awk '{print $1}')"
+          echo "IP de tendencity.shop:   $(getent hosts tendencity.shop | awk '{print $1}')"
           echo "Nombres que trae el certificado del FTP (usa uno de estos como FTP_SERVER):"
           echo | timeout 20 openssl s_client -starttls ftp -connect "$S:21" 2>/dev/null | openssl x509 -noout -subject -ext subjectAltName || true
           echo "Carpeta inicial de la cuenta FTP:"

@@ -149,7 +149,7 @@ final class MastershopClient
             'ms-api-key: ' . $this->apiKey,
             'Accept: application/json',
             // Sin User-Agent algunos firewalls responden 403 "Forbidden" aunque la llave sea válida
-            'User-Agent: Mozilla/5.0 (compatible; TendencityStore/1.0; +' . (env('SITE_URL') ?: 'https://tendencity.store') . ')',
+            'User-Agent: Mozilla/5.0 (compatible; TendencityStore/1.0; +' . rtrim((string) env('SITE_URL', 'http://localhost'), '/') . ')',
             'Accept-Language: es-CO,es;q=0.9',
         ];
         $payload = null;

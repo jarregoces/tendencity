@@ -367,7 +367,7 @@ final class OrderService
                 throw new InvalidArgumentException('Revisa el correo electrónico');
             }
             // El correo es opcional en el formulario; Mastershop lo pide, así que va uno de respaldo.
-            $email = (string) env('FALLBACK_EMAIL', 'pedidos@tendencity.store');
+            $email = (string) fallback_email();
         }
         $docType = trim((string) ($c['document_type'] ?? '')) ?: null;
         $docNum  = preg_replace('/[^0-9A-Za-z]/', '', (string) ($c['document_number'] ?? '')) ?: null;

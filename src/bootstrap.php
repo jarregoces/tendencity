@@ -40,6 +40,13 @@ require_once __DIR__ . '/Country.php';
 // Hora del país de la tienda: fechas de PHP y de MySQL deben coincidir
 date_default_timezone_set(env('APP_TIMEZONE') ?: Country::get('timezone'));
 
+/** Correo de respaldo para pedidos sin correo del cliente: FALLBACK_EMAIL o pedidos@<dominio de SITE_URL>. */
+function fallback_email(): string
+{
+    $host = preg_replace('/^www\./', '', (string) parse_url(rtrim((string) env('SITE_URL', ''), '/') . '/', PHP_URL_HOST));
+    return (string) (env('FALLBACK_EMAIL') ?: 'pedidos@' . ($host ?: 'localhost'));
+}
+
 function db(): PDO
 {
     static $pdo = null;

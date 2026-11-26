@@ -26,7 +26,7 @@ final class MetaCapi
         $phone = Country::intlPhone($phone);
         $norm = fn($s) => preg_replace('/[^a-z]/', '', iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', mb_strtolower((string) $s)) ?: '');
         $email = $customer['email'] ?? '';
-        if ($email === env('FALLBACK_EMAIL', 'pedidos@tendencity.store')) { $email = ''; } // el correo de respaldo no es del cliente
+        if ($email === fallback_email()) { $email = ''; } // el correo de respaldo no es del cliente
         return array_filter([
             'ph' => $phone ? [hash('sha256', $phone)] : null,
             'em' => $email ? [self::h($email)] : null,

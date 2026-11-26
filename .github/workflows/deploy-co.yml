@@ -21,7 +21,7 @@ jobs:
       - name: Revisar sintaxis PHP
         run: find src public cli templates -name '*.php' -print0 | xargs -0 -n1 php -l > /dev/null
 
-      # tendencity.store tiene todo el proyecto dentro de public_html/ (el .htaccess de la raíz
+      # La tienda de Colombia (tendencity.shop) tiene todo el proyecto dentro de public_html/ (el .htaccess de la raíz
       # bloquea src/, cli/, sql/, templates/ y .env). Cambia la carpeta con la variable SERVER_DIR.
       # Nunca toca: .env (claves), public/uploads/ (fotos), logs, ni archivos propios de cPanel.
       - name: Subir por FTP a cPanel
