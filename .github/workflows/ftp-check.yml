@@ -22,7 +22,15 @@ jobs:
           echo "IP de tendencity.shop:   $(getent hosts tendencity.shop | awk '{print $1}')"
           echo "Nombres que trae el certificado del FTP (usa uno de estos como FTP_SERVER):"
           echo | timeout 20 openssl s_client -starttls ftp -connect "$S:21" 2>/dev/null | openssl x509 -noout -subject -ext subjectAltName || true
-          echo "Respuesta de tendencity.shop:"; curl -sI --max-time 20 https://tendencity.shop/ | head -5 || true
+          echo "DNS tendencity.shop:"; for t in A AAAA NS; do echo "  $t: $(dig +short $t tendencity.shop | tr '\n' ' ')"; done
+          echo "  www: $(dig +short www.tendencity.shop | tr '\n' ' ')"
+          for u in https://tendencity.shop/ https://www.tendencity.shop/ http://tendencity.shop/; do
+            echo "--- $u"; curl -s -o /tmp/b.html -m 20 -w "  codigo %{http_code} ip %{remote_ip} redirige %{redirect_url}\n" "$u" || true
+            grep -io '<title>[^<]*' /tmp/b.html | head -1 || true; curl -sI -m 20 "$u" | grep -i '^server' || true
+          done
+          echo "--- tendencity.shop forzado a la IP del hosting (172.93.120.110):"
+          curl -s -o /tmp/b.html -m 20 --resolve tendencity.shop:443:172.93.120.110 -w "  codigo %{http_code}\n" https://tendencity.shop/ || true
+          grep -io '<title>[^<]*' /tmp/b.html | head -1 || true
           echo "Carpeta inicial de la cuenta FTP:"
           curl -sv --ssl-reqd --max-time 30 -u "$U:$P" "ftp://$S/" -o /dev/null 2>&1 | grep -E '< 257' || true
           ls_ftp ""
