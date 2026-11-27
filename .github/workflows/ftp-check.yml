@@ -1,4 +1,4 @@
-name: Revisar carpetas FTP Colombia
+name: Revisar carpetas FTP Colombia (tendencity.shop)
 
 # Solo lista carpetas (no sube ni borra nada). Corre al cambiar este archivo, o a mano desde Actions.
 on:
